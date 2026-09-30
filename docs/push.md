@@ -146,17 +146,21 @@ Subscriptions expire. `expires` is a hint the server may shorten, and
 
 ### Reading what arrives
 
-Each `POST` to your URL carries one JSON object: a `StateChange`, or the
-`PushVerification` from step 2. `read_push` turns the body into whichever it is,
+Each `POST` to your URL carries one JSON object: a `StateChange`, the
+`PushVerification` from step 2 or - from a calendar server, when the
+subscription's `types` named the `CalendarAlert` pseudo-type - a `CalendarAlert`
+for an alert that has fired. `read_push` turns the body into whichever it is,
 and raises `PushPayloadError` for anything else:
 
 ```python
-from jmap.models.push import PushVerification
+from jmap.models.push import CalendarAlert, PushVerification
 from jmap.push import read_push
 
 pushed = read_push(body)  # the raw bytes of the POST
 if isinstance(pushed, PushVerification):
     pending.record(pushed)  # a PendingVerification
+elif isinstance(pushed, CalendarAlert):
+    ...  # pushed.calendar_event_id fired: recurrence_id says which occurrence
 else:
     ...  # a StateChange: compare its states, fetch what moved
 ```

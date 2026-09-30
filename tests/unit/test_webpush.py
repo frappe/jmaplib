@@ -10,6 +10,7 @@ import base64
 import json
 import subprocess
 import sys
+from datetime import datetime
 from typing import Any
 
 import pytest
@@ -19,7 +20,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from jmap.models.push import PushKeys, PushVerification, StateChange
+from jmap.models.push import CalendarAlert, PushKeys, PushVerification, StateChange
 from jmap.push import (
     PendingVerification,
     PushKeyPair,
@@ -46,6 +47,14 @@ RFC_BODY = unbase64(
 )
 
 CHANGE = {"@type": "StateChange", "changed": {"a1": {"Email": "s9"}}}
+ALERT = {
+    "@type": "CalendarAlert",
+    "accountId": "a1",
+    "calendarEventId": "e7",
+    "uid": "5e0a9d3c-standup",
+    "recurrenceId": "2026-10-05T09:00:00",
+    "alertId": "a1",
+}
 
 
 def hkdf(salt: bytes, secret: bytes, info: bytes, length: int) -> bytes:
@@ -158,6 +167,15 @@ class TestDecrypting:
         pending.record(verification)
         assert pending.claim("P1") == "c0"
 
+    def test_a_calendar_alert_reads_back(self, pair):
+        alert = read_push(pushed(pair, ALERT), pair)
+        assert isinstance(alert, CalendarAlert)
+        assert (alert.account_id, alert.calendar_event_id, alert.alert_id) == ("a1", "e7", "a1")
+        # The occurrence is a wall-clock reading in the event's zone: naive, and
+        # back out exactly as it came.
+        assert alert.recurrence_id == datetime(2026, 10, 5, 9)
+        assert alert.to_wire() == ALERT
+
     def test_padding_after_the_delimiter_is_stripped(self, pair):
         assert isinstance(read_push(pushed(pair, CHANGE, padding=40), pair), StateChange)
 
@@ -190,6 +208,11 @@ class TestReading:
     def test_an_unencrypted_push_is_the_json_itself(self):
         assert isinstance(read_push(json.dumps(CHANGE).encode()), StateChange)
 
+    def test_an_alert_for_an_event_that_does_not_recur_has_no_occurrence(self):
+        alert = read_push(json.dumps({**ALERT, "recurrenceId": None}).encode())
+        assert isinstance(alert, CalendarAlert)
+        assert alert.recurrence_id is None
+
     @pytest.mark.parametrize(
         ("body", "message"),
         [
@@ -198,6 +221,11 @@ class TestReading:
             (b'{"@type": "Response"}', "unexpected @type 'Response'"),
             (b'{"changed": {}}', "unexpected @type None"),
             (b'{"@type": "StateChange", "changed": 5}', "a malformed StateChange"),
+            # An instant is not an occurrence: §6.4 makes recurrenceId a LocalDateTime.
+            (
+                b'{"@type": "CalendarAlert", "recurrenceId": "2026-10-05T09:00:00Z"}',
+                "a malformed CalendarAlert",
+            ),
         ],
     )
     def test_anything_but_a_push_object_is_refused(self, body, message):

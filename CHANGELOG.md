@@ -5,6 +5,18 @@ with one deliberate exception: capabilities marked `experimental=True` track IET
 drafts and are excluded from the compatibility promise. See `jmap.SPEC_REVISIONS`
 for exactly which revision of each spec this build implements.
 
+## Unreleased
+
+### Added
+
+- **A fired alert can be read (calendars, experimental).** A server with
+  calendars pushes a `CalendarAlert` when an alert fires, to a subscription that
+  registered the pseudo-type and as a `calendarAlert` event over an event source
+  (draft-ietf-jmap-calendars-29 §6.4). `read_push` refused it as an unexpected
+  `@type` and `listen()` skipped it as unknown; both now answer with
+  `jmap.models.push.CalendarAlert`, which names the base event, the occurrence
+  (`recurrence_id`, a LocalDateTime) and the alert.
+
 ## 2.0.0
 
 A major release: some of what existing code relies on changed, and **Changed**

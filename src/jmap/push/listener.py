@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 
     from jmap.aio import AsyncJMAPClient
     from jmap.client import JMAPClient
-    from jmap.models.push import StateChange
+    from jmap.models.push import CalendarAlert, StateChange
     from jmap.push.eventsource import Ping
 
 #: RFC 8620 §7.3 puts no floor on ``retry:``. A server asking for zero would spin
@@ -324,7 +324,7 @@ class EventSourceClient:
         """The resume cursor. Survives reconnects; unmoved by pings."""
         return self._listener.last_event_id
 
-    def events(self) -> Generator[StateChange | Ping, None, None]:
+    def events(self) -> Generator[StateChange | CalendarAlert | Ping, None, None]:
         """Yield events from a *single* connection, ending when it does.
 
         Use :meth:`listen` unless you want to handle reconnection yourself.
@@ -355,7 +355,7 @@ class EventSourceClient:
             # cursor, and discarding it would replay everything already seen.
             self._listener.absorb(stream)
 
-    def listen(self) -> Generator[StateChange | Ping, None, None]:
+    def listen(self) -> Generator[StateChange | CalendarAlert | Ping, None, None]:
         """Yield events indefinitely, reconnecting whenever the stream ends.
 
         Resumes from ``Last-Event-ID`` each time, so a drop costs latency rather
@@ -421,7 +421,7 @@ class AsyncEventSourceClient:
     def last_event_id(self) -> str:
         return self._listener.last_event_id
 
-    async def events(self) -> AsyncGenerator[StateChange | Ping, None]:
+    async def events(self) -> AsyncGenerator[StateChange | CalendarAlert | Ping, None]:
         """Yield events from a single connection, ending when it does.
 
         A generator rather than an iterator so a caller who stops early can
@@ -446,7 +446,7 @@ class AsyncEventSourceClient:
         finally:
             self._listener.absorb(stream)
 
-    async def listen(self) -> AsyncGenerator[StateChange | Ping, None]:
+    async def listen(self) -> AsyncGenerator[StateChange | CalendarAlert | Ping, None]:
         """Yield events indefinitely, reconnecting whenever the stream ends.
 
         Transport drops and transient refusals redial with backoff; everything

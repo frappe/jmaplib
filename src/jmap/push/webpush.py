@@ -29,8 +29,10 @@ from jmap.core.ijson import loads
 from jmap.core.narrow import as_object, is_object
 from jmap.models.base import validation_summary
 from jmap.models.push import (
+    TYPE_CALENDAR_ALERT,
     TYPE_PUSH_VERIFICATION,
     TYPE_STATE_CHANGE,
+    CalendarAlert,
     PushKeys,
     PushVerification,
     StateChange,
@@ -152,13 +154,17 @@ class PushKeyPair:
         return f"PushKeyPair(p256dh={_encode(self._public)!r})"
 
 
-def read_push(body: bytes, keys: PushKeyPair | None = None) -> StateChange | PushVerification:
+def read_push(
+    body: bytes, keys: PushKeyPair | None = None
+) -> StateChange | PushVerification | CalendarAlert:
     """What one POST to your push endpoint says.
 
     Pass ``keys`` when the subscription was created with them, and the body is
     decrypted first; without them it is the JSON object itself. Either way the
-    answer is a ``StateChange``, or the ``PushVerification`` whose code proves
-    you own the URL - see :class:`~jmap.push.PendingVerification`.
+    answer is a ``StateChange``, the ``PushVerification`` whose code proves you
+    own the URL - see :class:`~jmap.push.PendingVerification` - or, when the
+    subscription registered a calendar server's ``CalendarAlert`` pseudo-type,
+    the ``CalendarAlert`` for an alert that has fired.
     """
     if keys is not None:
         body = keys.decrypt(body)
@@ -175,10 +181,13 @@ def read_push(body: bytes, keys: PushKeyPair | None = None) -> StateChange | Pus
             return StateChange.model_validate(pushed)
         if tag == TYPE_PUSH_VERIFICATION:
             return PushVerification.model_validate(pushed)
+        if tag == TYPE_CALENDAR_ALERT:
+            return CalendarAlert.model_validate(pushed)
     except ValidationError as exc:
         raise PushPayloadError(f"a malformed {tag}: {validation_summary(exc)}") from exc
     raise PushPayloadError(
-        f"unexpected @type {tag!r}; a push is a {TYPE_STATE_CHANGE} or a {TYPE_PUSH_VERIFICATION}"
+        f"unexpected @type {tag!r}; a push is a {TYPE_STATE_CHANGE}, a {TYPE_PUSH_VERIFICATION} "
+        f"or a {TYPE_CALENDAR_ALERT}"
     )
 
 

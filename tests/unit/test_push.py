@@ -21,6 +21,7 @@ from jmap.models.push import (
     TYPE_PUSH_ENABLE,
     TYPE_PUSH_VERIFICATION,
     TYPE_STATE_CHANGE,
+    CalendarAlert,
     PushKeys,
     PushSubscription,
     PushVerification,
@@ -283,12 +284,32 @@ class TestParseEvent:
         with pytest.raises(EventSourceError, match="not a StateChange"):
             parse_event("state", payload)
 
+    def test_a_calendar_alert_event_becomes_a_calendar_alert(self):
+        # draft-ietf-jmap-calendars-29 §6.4: the event source's name for the push.
+        parsed = parse_event(
+            "calendarAlert",
+            '{"@type":"CalendarAlert","accountId":"a","calendarEventId":"e7",'
+            '"uid":"u","recurrenceId":"2026-10-05T09:00:00","alertId":"a1"}',
+        )
+        assert isinstance(parsed, CalendarAlert)
+        assert (parsed.calendar_event_id, parsed.alert_id) == ("e7", "a1")
+
+    def test_a_calendar_alert_event_of_the_wrong_shape_raises(self):
+        # An instant is not an occurrence: §6.4 makes recurrenceId a LocalDateTime.
+        with pytest.raises(EventSourceError, match="not a CalendarAlert"):
+            parse_event("calendarAlert", '{"recurrenceId": "2026-10-05T09:00:00Z"}')
+
 
 class TestEventStream:
     def test_state_events_are_yielded(self):
         stream = EventStream.open()
         events = list(stream.feed(b'event: state\ndata: {"changed":{"a":{"Email":"e1"}}}\n\n'))
         assert isinstance(events[0], StateChange)
+
+    def test_calendar_alert_events_are_yielded(self):
+        stream = EventStream.open()
+        events = list(stream.feed(b'event: calendarAlert\ndata: {"calendarEventId":"e7"}\n\n'))
+        assert isinstance(events[0], CalendarAlert)
 
     def test_the_cursor_advances_on_a_state_event(self):
         stream = EventStream.open()

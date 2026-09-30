@@ -30,7 +30,7 @@ import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Final, Literal, Self
+from typing import TYPE_CHECKING, Any, Final, Literal, Self, TypeVar
 
 from pydantic import ValidationError
 
@@ -41,15 +41,16 @@ from jmap.core.session import Session
 from jmap.core.uritemplate import expand
 from jmap.models.arguments import UnsignedInt, checked
 from jmap.models.base import validation_summary
-from jmap.models.push import StateChange
+from jmap.models.push import CalendarAlert, StateChange, Tagged
 from jmap.push.sse import DEFAULT_EVENT_TYPE, SSEParser
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-#: RFC 8620 §7.3 event names.
+#: RFC 8620 §7.3 event names, and draft-ietf-jmap-calendars-29 §6.4's.
 EVENT_STATE = "state"
 EVENT_PING = "ping"
+EVENT_CALENDAR_ALERT = "calendarAlert"
 
 #: ``closeafter`` values.
 CLOSE_AFTER_STATE: Final = "state"
@@ -57,6 +58,8 @@ CLOSE_AFTER_NO: Final = "no"
 
 #: The wildcard accepted by the ``types`` template variable.
 ALL_TYPES = "*"
+
+P = TypeVar("P", bound=Tagged)
 
 #: RFC 8620 §7.3 bounds what a server may clamp a ping interval to: a minimum no
 #: higher than 30 and a maximum no lower than 300. Anything inside that range is
@@ -137,20 +140,18 @@ def event_source_url(
     )
 
 
-def parse_event(event_type: str, data: str) -> StateChange | Ping | None:
+def parse_event(event_type: str, data: str) -> StateChange | CalendarAlert | Ping | None:
     """Interpret one server-sent event as JMAP.
 
     Returns ``None`` for anything unrecognised rather than raising: RFC 8620 §7.3
-    names two event types and a stream is free to carry others, and a client that
-    dies on an unknown event cannot be extended without breaking it.
+    names two event types and the calendars draft a third, a stream is free to
+    carry others, and a client that dies on an unknown event cannot be extended
+    without breaking it.
     """
     if event_type == EVENT_STATE:
-        try:
-            return StateChange.model_validate(_json_object(data))
-        except ValidationError as exc:
-            raise EventSourceError(
-                f"state event is not a StateChange: {validation_summary(exc)}"
-            ) from exc
+        return _pushed(StateChange, event_type, data)
+    if event_type == EVENT_CALENDAR_ALERT:
+        return _pushed(CalendarAlert, event_type, data)
     if event_type == EVENT_PING:
         payload = _json_object(data)
         interval = payload.get("interval")
@@ -158,6 +159,15 @@ def parse_event(event_type: str, data: str) -> StateChange | Ping | None:
         genuine = isinstance(interval, int) and not isinstance(interval, bool)
         return Ping(interval=interval if genuine else None)
     return None
+
+
+def _pushed(model: type[P], event_type: str, data: str) -> P:
+    try:
+        return model.model_validate(_json_object(data))
+    except ValidationError as exc:
+        raise EventSourceError(
+            f"{event_type} event is not a {model.__name__}: {validation_summary(exc)}"
+        ) from exc
 
 
 def _json_object(data: str) -> dict[str, Any]:
@@ -222,7 +232,7 @@ class EventStream:
         """The server's requested reconnection delay, in milliseconds."""
         return self.parser.retry
 
-    def feed(self, chunk: bytes) -> Iterator[StateChange | Ping]:
+    def feed(self, chunk: bytes) -> Iterator[StateChange | CalendarAlert | Ping]:
         """Consume transport bytes, yielding whatever events they complete."""
         for event in self.parser.feed_bytes(chunk):
             self._track()

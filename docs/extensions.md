@@ -197,6 +197,13 @@ and the RFC 8984 properties jscalendarbis dropped or renamed - `recurrence_rules
 `reply_to`, a participant's `send_to`, inline `time_zones` - so data from a 1.0
 source reads typed too. Nothing converts between the two revisions.
 
+**Alerts are pushed.** Name the pseudo-type `CalendarAlert` among a push
+subscription's `types`, or an event source's, and an alert that fires arrives as
+a `jmap.models.push.CalendarAlert` - from `read_push`, or yielded by `listen()`
+like a `StateChange`. It names the base event, the occurrence (`recurrence_id`, a
+LocalDateTime in the event's zone, or None) and the alert; fetch the event if you
+need more.
+
 **Parsing iCalendar** is optional for a server, behind
 `urn:ietf:params:jmap:calendars:parse`. When it is advertised,
 `batch.calendars.calendar_event.parse(blob_ids=[blob_id])` reads uploaded `.ics`

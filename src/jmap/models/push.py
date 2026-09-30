@@ -27,10 +27,12 @@ from typing import Any, ClassVar
 from pydantic import Field
 
 from jmap.models.base import JMAPModel
+from jmap.models.jsdates import LocalDateTime
 
-#: RFC 8620 §7.1 and §7.2.2, RFC 8887 §4.3.
+#: RFC 8620 §7.1 and §7.2.2, RFC 8887 §4.3, draft-ietf-jmap-calendars-29 §6.4.
 TYPE_STATE_CHANGE = "StateChange"
 TYPE_PUSH_VERIFICATION = "PushVerification"
+TYPE_CALENDAR_ALERT = "CalendarAlert"
 TYPE_REQUEST = "Request"
 TYPE_RESPONSE = "Response"
 TYPE_REQUEST_ERROR = "RequestError"
@@ -182,6 +184,26 @@ class PushVerification(Tagged):
 
     push_subscription_id: str | None = None
     verification_code: str | None = None
+
+
+class CalendarAlert(Tagged):
+    """An alert that has fired (draft-ietf-jmap-calendars-29 §6.4).
+
+    Pushed to a subscription that registered the ``CalendarAlert`` pseudo-type,
+    and sent as a ``calendarAlert`` event over an event source. Like a
+    ``StateChange`` it carries identifiers, not the event: ``calendar_event_id``
+    is the base event's id even when the event recurs, and ``recurrence_id`` - a
+    LocalDateTime, read in the event's own time zone - says which occurrence
+    fired, or is None for an event that does not recur.
+    """
+
+    TAG: ClassVar[str] = TYPE_CALENDAR_ALERT
+
+    account_id: str | None = None
+    calendar_event_id: str | None = None
+    uid: str | None = None
+    recurrence_id: LocalDateTime | None = None
+    alert_id: str | None = None
 
 
 class WebSocketPushEnable(Tagged):
