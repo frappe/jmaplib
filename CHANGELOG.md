@@ -5,6 +5,16 @@ with one deliberate exception: capabilities marked `experimental=True` track IET
 drafts and are excluded from the compatibility promise. See `jmap.SPEC_REVISIONS`
 for exactly which revision of each spec this build implements.
 
+## Unreleased
+
+### Changed
+
+- **The license is now AGPL-3.0, not MIT.** From the next release on, jmaplib is
+  published under the GNU Affero General Public License, version 3
+  (`AGPL-3.0-only`). Releases up to and including 2.1.0 stay MIT. Read the AGPL's
+  terms before upgrading a program that depends on jmaplib: they reach further
+  than MIT's did.
+
 ## 2.1.0
 
 ### Added

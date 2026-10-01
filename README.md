@@ -36,7 +36,7 @@ with JMAPClient.connect(
   trusting a DNS answer with your credentials.
 - **Easy to test.** An in-process fake JMAP server ships with the package.
 
-Python 3.11+ · MIT licensed · fully typed · 100% test coverage · tested against
+Python 3.11+ · AGPL-3.0 licensed · fully typed · 100% test coverage · tested against
 a live Stalwart server on every push.
 
 ## Contents
@@ -753,4 +753,5 @@ the integration tests against a live server, and the benchmarks.
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+GNU Affero General Public License, version 3 - see [LICENSE](LICENSE). Releases
+up to and including 2.1.0 were published under the MIT license and stay under it.
