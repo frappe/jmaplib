@@ -37,7 +37,7 @@ cli = ["typer>=0.15", "rich>=13"]
 Homepage = "https://github.com/frappe/jmaplib"
 Repository = "https://github.com/frappe/jmaplib"
 Issues = "https://github.com/frappe/jmaplib/issues"
-Changelog = "https://github.com/frappe/jmaplib/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/frappe/jmaplib/blob/develop/CHANGELOG.md"
 
 # The fake JMAP server will ship as a pytest plugin so downstream users get
 # `jmap_fake_server` / `jmap_client` fixtures from `pip install jmaplib` alone.

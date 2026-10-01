@@ -2,11 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
   pull_request:
   workflow_dispatch:
   # Called by release.yml, so nothing is published from a commit that has not
-  # passed the same gate main has to.
+  # passed the same gate develop has to.
   workflow_call:
 
 concurrency:
