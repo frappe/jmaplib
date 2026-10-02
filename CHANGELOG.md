@@ -5,11 +5,16 @@ with one deliberate exception: capabilities marked `experimental=True` track IET
 drafts and are excluded from the compatibility promise. See `jmap.SPEC_REVISIONS`
 for exactly which revision of each spec this build implements.
 
-## Unreleased
+## 3.0.1
+
+A major release for the license alone: the API is unchanged from 2.1.0, and the
+version is what keeps a `<3` pin on the MIT releases. There is no 3.0.0 to
+install: it was published with the wrong author in its metadata and withdrawn,
+and PyPI does not let a version number be used twice.
 
 ### Changed
 
-- **The license is now AGPL-3.0, not MIT.** From the next release on, jmaplib is
+- **The license is now AGPL-3.0, not MIT.** From 3.0 on, jmaplib is
   published under the GNU Affero General Public License, version 3
   (`AGPL-3.0-only`). Releases up to and including 2.1.0 stay MIT. Read the AGPL's
   terms before upgrading a program that depends on jmaplib: they reach further
