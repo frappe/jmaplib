@@ -59,6 +59,9 @@ SURFACE = {
     "vacation": {"show", "set", "enable", "disable"},
     "addressbook": {"list", "create", "rename", "delete"},
     "contact": {"list", "show", "create", "edit", "delete", "import"},
+    "principal": {"list", "show", "me"},
+    "share": {"list", "grant", "revoke", "unshare", "subscribe", "unsubscribe", "notifications"},
+    "mdn": {"send", "parse"},
 }
 
 

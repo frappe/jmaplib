@@ -37,7 +37,11 @@ def register(app: typer.Typer) -> None:
         mail_triage,
         mailbox,
         mailbox_edit,
+        mdn,
+        principal,
         server,
+        share,
+        share_list,
         shell_cmd,
         submission,
         vacation,
@@ -46,6 +50,7 @@ def register(app: typer.Typer) -> None:
     # Importing these is what defines their commands on mail.app and mailbox.app.
     del mail_read, mail_triage, mail_files, mailbox_edit
     del contact_edit, contact_import  # and these, on contact.app
+    del share_list  # defines `share list` and `share notifications` on share.app
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
     app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
@@ -60,6 +65,9 @@ def register(app: typer.Typer) -> None:
     app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
     app.add_typer(addressbook.app, name="addressbook", help="The collections contacts live in.")
     app.add_typer(contact.app, name="contact", help="List, show, create and edit contacts.")
+    app.add_typer(principal.app, name="principal", help="People, groups and resources.")
+    app.add_typer(share.app, name="share", help="Who else may use your data.")
+    app.add_typer(mdn.app, name="mdn", help="Read receipts.")
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)

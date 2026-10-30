@@ -31,6 +31,13 @@ for exactly which revision of each spec this build implements.
   and `send --eml` for a whole message file. Also `jmap draft`, `jmap
   attachment`, `jmap identity`, `jmap submission`, `jmap vacation`, and `jmap
   mail import` and `export` (to `.eml` files or an mbox).
+- **Sharing and read receipts from the command line.** `jmap principal
+  list/show/me` finds people, groups and resources. `jmap share grant OBJECT
+  PRINCIPAL --read|--write|--admin|--rights` gives access to a mailbox,
+  calendar, address book or file, and `revoke`, `unshare`, `subscribe`,
+  `unsubscribe`, `list` and `notifications` do the rest. Each change patches
+  one principal's entry, so other principals keep their access. `jmap mdn send`
+  sends a read receipt once per message, and `jmap mdn parse` reads one.
 - **`jmap.mail.compose`, `jmap.mail.reply` and `jmap.mail.addresses`**: drafts
   and their text form, the checked `Email/set` create object, the envelope for a
   held send, replies and forwards, choosing an identity, and address parsing;
