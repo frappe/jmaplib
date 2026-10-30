@@ -23,9 +23,13 @@ def register(app: typer.Typer) -> None:
         account,
         api,
         attachment,
+        calendar,
         compose,
         config_cmd,
         draft,
+        event,
+        event_edit,
+        freebusy,
         identity,
         mail,
         mail_files,
@@ -40,7 +44,7 @@ def register(app: typer.Typer) -> None:
     )
 
     # Importing these is what defines their commands on mail.app and mailbox.app.
-    del mail_read, mail_triage, mail_files, mailbox_edit
+    del mail_read, mail_triage, mail_files, mailbox_edit, event_edit
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
     app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
@@ -53,6 +57,9 @@ def register(app: typer.Typer) -> None:
     app.add_typer(identity.app, name="identity", help="The addresses you send from.")
     app.add_typer(submission.app, name="submission", help="Sent and held messages.")
     app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
+    app.add_typer(calendar.app, name="calendar", help="Calendars (experimental).")
+    app.add_typer(event.app, name="event", help="Calendar events (experimental).")
+    app.command("freebusy")(freebusy.freebusy)
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
