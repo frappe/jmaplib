@@ -57,6 +57,8 @@ SURFACE = {
     "identity": {"list", "show", "create", "update", "delete"},
     "submission": {"list", "show", "cancel"},
     "vacation": {"show", "set", "enable", "disable"},
+    "principal": {"list", "show", "me"},
+    "share": {"list", "grant", "revoke", "unshare", "subscribe", "unsubscribe", "notifications"},
 }
 
 
