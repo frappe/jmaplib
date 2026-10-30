@@ -116,6 +116,8 @@ def queue_list(
     filter: Mapping[str, Any] | None = None,  # the wire name
     sort: Sequence[Mapping[str, Any]] = (),
     position: int = 0,
+    anchor: str | None = None,
+    anchor_offset: int = 0,
     limit: int | None = None,
     calculate_total: bool = True,
     collapse_threads: bool = False,
@@ -124,14 +126,20 @@ def queue_list(
 ) -> ListHandles:
     """``Email/query`` then ``Email/get`` of its ids, in one request.
 
-    With ``snippets``, ``SearchSnippet/get`` highlights the matches too; it is
-    worth asking only when ``filter`` searches text.
+    With ``anchor``, the page starts ``anchor_offset`` messages from that email
+    instead of at ``position``. With ``snippets``, ``SearchSnippet/get``
+    highlights the matches too; it is worth asking only when ``filter``
+    searches text.
     """
     arguments: dict[str, Any] = {
-        "position": position,
         "calculateTotal": calculate_total,
         "collapseThreads": collapse_threads,
     }
+    if anchor is None:
+        arguments["position"] = position
+    else:
+        arguments["anchor"] = anchor
+        arguments["anchorOffset"] = anchor_offset
     if filter:
         arguments["filter"] = dict(filter)
     if sort:

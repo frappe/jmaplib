@@ -87,6 +87,10 @@ def email(
         "textBody": [text_part],
         "htmlBody": [html_part if html is not None else text_part],
         "attachments": files,
+        "bodyStructure": {
+            "type": "multipart/mixed",
+            "subParts": [text_part, *([html_part] if html is not None else []), *files],
+        },
         "bodyValues": values,
         "header:List-Id:asText": "<list.example.com>",
         "headers": [{"name": "Subject", "value": f" {subject}"}],
@@ -199,6 +203,9 @@ class MailStore:
                 first.setdefault(item["threadId"], item)
             found = list(first.values())
         position = args.get("position", 0)
+        if "anchor" in args:
+            ids = [e["id"] for e in found]
+            position = max(0, ids.index(args["anchor"]) + args.get("anchorOffset", 0))
         limit = args.get("limit")
         page = found[position : None if limit is None else position + limit]
         result = {

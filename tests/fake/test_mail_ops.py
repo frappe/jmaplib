@@ -84,6 +84,16 @@ class TestList:
         assert len(found.query.result.ids) == 2
         assert "e3" in found.query.result.ids
 
+    def test_an_anchor_replaces_the_position(self, mail):
+        with mail.client.batch() as batch:
+            found = queue_list(batch, anchor="e2", anchor_offset=-1, limit=2)
+        query = mail.calls()[0][1]
+        assert query["anchor"] == "e2"
+        assert query["anchorOffset"] == -1
+        assert "position" not in query
+        assert found.query.result.position == 0
+        assert found.query.result.ids == ["e3", "e2"]
+
     def test_snippets_share_the_filter(self, mail):
         client = mail.client
         with client.batch() as batch:

@@ -392,6 +392,10 @@ with the standard library's parser: paragraphs, `- ` list items, `> ` quotes and
 value short at `maxBodyValueBytes`. `attachments_of` and `quote` do what their
 names say.
 
+`queue_list` pages by `position`, or with `anchor=EMAIL_ID` (and
+`anchor_offset`) from a message instead; the result's `position` says where
+that page starts.
+
 `queue_thread` fetches a whole conversation in one request through the
 flattening back-reference `/list/*/emailIds` (RFC 8620 §3.7). A server that
 answers `invalidResultReference` needs two requests, `Thread/get` first.
