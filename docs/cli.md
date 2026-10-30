@@ -4,9 +4,10 @@
 library: every command is a batch you could write yourself, and `-v` shows each
 request it sends. `python -m jmap` runs the same command.
 
-This release has accounts, mailboxes, reading, searching and filing mail, the
-server's session and capabilities, and raw method calls. Sending mail comes
-next, then the shell, contacts, calendars and files.
+This release has accounts (passwords, tokens or OAuth), mailboxes, reading,
+searching and filing mail, an interactive shell, the server's session and
+capabilities, and raw method calls. Sending mail comes next, then contacts,
+calendars and files.
 
 ## First run
 
@@ -82,6 +83,36 @@ the message out of the mailbox it was listed from and puts it in Archive; a
 message also filed elsewhere stays there. When the source is unknown (you named
 it by id), give `--from MAILBOX`, or the message ends up in the target alone.
 
+## The shell
+
+`jmap shell` keeps one connection open and runs commands typed at its prompt,
+with history and Tab completion. Everything that works as `jmap <command>` works
+as `<command>` here, and a few commands exist only here:
+
+```console
+$ jmap shell
+alice@work:Inbox> ls
+alice@work:Inbox> read 2
+alice@work:Inbox> cd Archive/2025
+alice@work:Archive/2025> ls --unread
+alice@work:Archive/2025> move 1 .
+alice@work:Archive/2025> exit
+```
+
+| | |
+|---|---|
+| `cd MAILBOX` | Make it the current mailbox: listings show it, and `.` names it. `cd ..` goes up, `cd` back to the inbox. |
+| `pwd` | Print the current mailbox. |
+| `use ACCOUNT` | Switch to another named account; `use ACCOUNT:ID` also picks the JMAP account. |
+| `refresh` | Fetch the session again. |
+| `help [COMMAND]` | Help for a command. |
+| `exit`, `quit`, Ctrl-D | Leave. Ctrl-C drops the line you are typing. |
+
+Global options given to `jmap shell` (`-a work`, `--no-keyring`) apply to every
+line. History is kept in `$XDG_STATE_HOME/jmap/history`. Without
+`prompt_toolkit`, or when lines come from a pipe, the shell reads plain lines,
+so a script can be fed to it: `jmap shell < triage.txt`.
+
 ## Two kinds of account
 
 A **named account** is one server and one credential. You can have any number;
@@ -113,6 +144,36 @@ the process list. They are looked for in this order:
 
 `--no-keyring` neither reads nor writes the keyring. With no keyring backend on
 the machine, the command says so once and uses the other sources.
+
+## OAuth
+
+Servers that sign in with OAuth need no password at all:
+
+```console
+$ jmap account add home --url https://mail.example.com --auth oauth
+Open this address to sign in:
+https://auth.example.com/authorize?...
+```
+
+The command finds the authorization server from the JMAP server (RFC 9728 and
+RFC 8414), registers itself as a client if you give no `--client-id` (RFC 7591),
+and opens your browser; after you sign in there, the browser comes back to a
+listener on this machine. With `--no-browser` it only prints the address. On a
+machine no browser can reach, `--device` prints a code to enter on another
+device instead (RFC 8628). `--scope` and `--issuer` override what is asked for
+and where.
+
+The token goes to the keyring and renews itself before it expires; when the
+server rotates refresh tokens, the new one is saved before the old one is
+dropped. `jmap account login NAME` signs in again.
+
+## SRV targets
+
+When `--address` finds the server through DNS and the answer names a host
+outside the address's domain, the command asks before sending your credentials
+there (RFC 6186 §6). A host you agree to is added to the account's
+`trusted_srv_targets`, so you are asked once. Without a terminal it is not
+tried; `account add --trust-srv HOST` trusts it in advance.
 
 ## Global options
 
@@ -168,16 +229,27 @@ timeout = 30.0
 [accounts.work]
 address = "alice@example.com"
 url = "https://mail.example.com/.well-known/jmap"   # omit to discover it
-auth = "password"            # password | token
+auth = "password"            # password | token | oauth
 username = ""                # defaults to address
 account_id = ""              # a JMAP account in the session, by id or name
 experimental = false
 trusted_srv_targets = []     # SRV hosts outside the domain you trust
 ca_bundle = ""
 insecure = false
+
+[accounts.work.oauth]          # for auth = "oauth"; filled in by `account add`
+client_id = ""
+scope = ""
+issuer = ""
 ```
 
 A `password` or `token` key in the file is refused: use `jmap account login`.
+
+`jmap config path` prints where the file is, `jmap config edit` opens it in
+`$VISUAL`, `$EDITOR` or `defaults.editor` and checks it afterwards, and
+`jmap config set KEY VALUE` changes one value: `jmap config set defaults.output
+json`, `jmap config set accounts.work.insecure true`. A value is read as TOML
+when it is one (`true`, `30`, `["a", "b"]`), and as text otherwise.
 
 For each setting a flag wins over an environment variable, which wins over the
 file. The variables are `JMAP_ACCOUNT`, `JMAP_URL`, `JMAP_USER`, `JMAP_PASSWORD`,
@@ -219,7 +291,7 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap account list` | The named accounts; `*` marks the default. |
 | `jmap account show [NAME]` | The JMAP accounts the session lists. |
 | `jmap account test [NAME]` | Connect and call `Core/echo`. |
-| `jmap account login [NAME]` | Enter the password or token again. |
+| `jmap account login [NAME]` | Enter the password or token again, or sign in with OAuth again. |
 | `jmap account set-default NAME` | Make it the default. |
 | `jmap account remove NAME` | Remove it and its stored secrets. |
 | `jmap mailbox list [--tree] [--subscribed]` | Every mailbox, parents first. |
@@ -248,6 +320,9 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap server echo [JSON]` | `Core/echo`. |
 | `jmap server refresh` | Fetch the session again. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
+| `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
+| `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
+| `jmap --install-completion` | Tab completion for your shell (bash, zsh, fish, PowerShell). |
 
 A `MAILBOX` is a role (`inbox`, `sent`, `archive`), a path (`Archive/2025`), a
 unique name, or an id. Roles are tried before names, because names are

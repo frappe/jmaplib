@@ -23,6 +23,16 @@ for exactly which revision of each spec this build implements.
   and `keyword`, and `jmap mailbox create/rename/move/delete/subscribe/
   unsubscribe/empty`. A move is a patch, so mail filed in several mailboxes stays
   where else it is.
+- **`jmap shell`**: one connection for many commands, with `cd` into a mailbox
+  (`.` names it), `use` to switch account, history, and Tab completion of
+  commands, options and mailboxes. It reads plain lines from a pipe, so a
+  script can be fed to it.
+- **OAuth accounts.** `jmap account add NAME --auth oauth` finds the
+  authorization server from the JMAP server, registers a client if there is
+  none, and signs in through the browser or, with `--device`, a code on another
+  device. The token is kept in the keyring and renews itself.
+- **`jmap config path`, `edit` and `set`**, and SRV hosts you agree to trust are
+  saved with the account, so you are asked once.
 - **`jmap.mail`**, for the same jobs from Python, with no I/O of its own: a
   search language compiled to an `Email/query` filter
   (`jmap.mail.query.parse`/`to_filter`), the bodies as text with HTML converted
