@@ -120,11 +120,13 @@ class ShareStore:
     def principal_query(self, args: dict[str, Any], _server: FakeJMAPServer) -> dict[str, Any]:
         condition: dict[str, Any] = args.get("filter") or {}
         text = str(condition.get("text", "")).lower()
+        email = str(condition.get("email", "")).lower()
         ids = [
             key
             for key, item in self.principals.items()
             if text in f"{item['name']} {item['email']}".lower()
             and condition.get("type") in {None, item["type"]}
+            and email in str(item["email"] or "").lower()
         ]
         return {"accountId": args["accountId"], "queryState": "q", "ids": ids, "position": 0}
 

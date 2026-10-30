@@ -45,7 +45,8 @@ class TestLs:
             for call in body["methodCalls"]
             if call[0] == "FileNode/query"
         ]
-        assert queries == [{"parentId": None, "name": "Projects"}, {"parentId": "d1"}]
+        # The top level is asked for without "parentId": null, which Stalwart refuses.
+        assert queries == [{"name": "Projects"}, {"parentId": "d1"}]
 
     def test_a_file(self, invoke, files):
         result = invoke("file", "ls", "Projects/./notes.txt", "--json")
@@ -66,6 +67,24 @@ def test_tree(invoke, files):
         "Projects/",
         "  Old/",
         "    plan.txt",
+        "  notes.txt",
+        "readme.md",
+    ]
+
+
+def test_tree_of_a_directory(invoke, files, server):
+    result = invoke("file", "tree", "/Projects")
+    assert [row[2] for row in rows(result.out)] == ["Old/", "  plan.txt", "notes.txt"]
+    query = server.requests[-1]["methodCalls"][0][1]
+    assert "filter" not in query
+    assert "depth" not in query
+
+
+def test_tree_keeps_its_depth_at_the_top(invoke, files):
+    result = invoke("file", "tree", "--depth", "2")
+    assert [row[2] for row in rows(result.out)] == [
+        "Projects/",
+        "  Old/",
         "  notes.txt",
         "readme.md",
     ]

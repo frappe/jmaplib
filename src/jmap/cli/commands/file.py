@@ -47,9 +47,10 @@ def tree_(
     """Show a directory and everything below it, indented."""
     tree = FileTree(cli(ctx))
     top = node_id(tree.directory(path))
-    nodes = tree.query({"parentId": top}, depth=depth)
+    # Every node, arranged here: Stalwart accepts the draft's "depth" but does not recurse.
+    nodes = tree.query({})
     levels: dict[str, int] = {}
-    ordered = _depth_first(nodes, top, 0, levels)
+    ordered = _depth_first(nodes, top, depth, levels)
     tree.context.renderer.render(
         View(ordered, _columns(lambda node: "  " * levels[node["id"]] + _label(node)))
     )
@@ -215,14 +216,16 @@ def _by_kind_and_name(node: Node) -> tuple[bool, str]:
 
 
 def _depth_first(
-    nodes: list[Node], parent: str | None, level: int, levels: dict[str, int]
+    nodes: list[Node], parent: str | None, depth: int, levels: dict[str, int], level: int = 0
 ) -> list[Node]:
-    """``nodes`` below ``parent``, each followed by its own children."""
+    """``nodes`` below ``parent``, each followed by its own children, ``depth`` levels down."""
+    if level >= depth:
+        return []
     ordered: list[Node] = []
     inside = sorted(
         (node for node in nodes if node.get("parentId") == parent), key=_by_kind_and_name
     )
     for node in inside:
         levels[node["id"]] = level
-        ordered += [node, *_depth_first(nodes, node["id"], level + 1, levels)]
+        ordered += [node, *_depth_first(nodes, node["id"], depth, levels, level + 1)]
     return ordered

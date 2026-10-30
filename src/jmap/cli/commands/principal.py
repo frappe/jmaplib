@@ -107,7 +107,7 @@ def labels(client: JMAPClient, ids: list[str], account: Id | None) -> dict[str, 
 
 def label(principal: dict[str, Any]) -> str:
     name, email = principal.get("name"), principal.get("email")
-    if name and email:
+    if name and email and str(name).lower() != str(email).lower():
         return f"{name} <{email}>"
     return str(name or email or principal["id"])
 
@@ -128,7 +128,9 @@ class Lookup:
         if not client.capabilities.supports("Principal/query"):
             return cls(reference, None, None)
         by_id = batch.add("Principal/get", {"ids": [reference]}, account_id=account)
-        found = batch.add("Principal/query", {"filter": {"text": reference}}, account_id=account)
+        # An address goes to the email filter: Stalwart's text filter does not match one whole.
+        condition = {"email": reference} if "@" in reference else {"text": reference}
+        found = batch.add("Principal/query", {"filter": condition}, account_id=account)
         by_text = batch.add("Principal/get", {"ids": found.ref_ids()}, account_id=account)
         return cls(reference, by_id, by_text)
 

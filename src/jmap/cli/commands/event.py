@@ -5,6 +5,7 @@ Creating, importing and changing events is in :mod:`event_edit`.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Any, Final
 
@@ -121,7 +122,7 @@ def show(ctx: typer.Context, event: EventRef, time_zone: TimeZone = None) -> Non
         Column("Calendars", "calendarIds", lambda e: view.calendars(e, names)),
         Column("Location", "locations", view.locations),
         Column("Repeats", "recurrenceRule", view.repeats),
-        Column("Occurrence of", "baseEventId"),
+        Column("Occurrence of", "baseEventId", lambda e: occurrence_of(e) or ""),
         Column("Participants", "participants", view.participants),
         Column("Alerts", "alerts", view.alerts),
         Column("Description", "description"),
@@ -137,7 +138,7 @@ def delete(ctx: typer.Context, event: EventRef, this_occurrence: ThisOccurrence 
     found = fetch_event(context, event, ["id", "title", "baseEventId", "recurrenceId"])
     refuse_occurrence(found, this_occurrence=this_occurrence)
     title = found.get("title") or found["id"]
-    if found.get("baseEventId"):
+    if occurrence_of(found):
         context.confirm(f"Delete the occurrence {found.get('recurrenceId')} of {title}?")
         set_event(context, override(context, found, {"excluded": True}), "deleted the occurrence")
         return
@@ -182,9 +183,18 @@ def fetch_event(context: CLIContext, event_id: str, properties: list[str]) -> di
     return _only(handle, event_id)
 
 
+def occurrence_of(event: Mapping[str, Any]) -> str | None:
+    """The repeating event ``event`` is one occurrence of, if it is one.
+
+    Stalwart gives an event that is not an occurrence its own id as ``baseEventId``.
+    """
+    base = event.get("baseEventId")
+    return str(base) if base and base != event.get("id") else None
+
+
 def refuse_occurrence(event: dict[str, Any], *, this_occurrence: bool) -> None:
     """Stop a change to one occurrence that the person did not ask for by name."""
-    base = event.get("baseEventId")
+    base = occurrence_of(event)
     if base and not this_occurrence:
         raise UsageError(
             f"{event['id']} is one occurrence of the repeating event {base}",

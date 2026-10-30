@@ -3,6 +3,10 @@
 The server has no path lookup. Each name is a ``FileNode/query`` on the parent
 found before it, so a path three names deep takes three requests. The top level
 is the nodes with no parent; ``/`` names it.
+
+Stalwart refuses ``"parentId": null`` in a filter, so a query of the top level
+leaves that condition out and keeps the nodes with no parent here. That fetches
+every node the other conditions match, which for ``ls /`` is all of them.
 """
 
 from __future__ import annotations
@@ -80,14 +84,20 @@ class FileTree:
         found = self.query({"parentId": node_id(parent), "name": name})
         return found[0] if found else None
 
-    def query(self, condition: dict[str, Any], **extra: Any) -> list[Node]:
-        """The nodes ``condition`` matches, with :data:`PROPERTIES`."""
+    def query(self, condition: dict[str, Any]) -> list[Node]:
+        """The nodes ``condition`` matches, with :data:`PROPERTIES`.
+
+        A ``parentId`` of ``None`` means the top level. No condition at all
+        means every node in the account.
+        """
+        top = "parentId" in condition and condition["parentId"] is None
+        wanted = {key: value for key, value in condition.items() if value is not None}
         client = self.context.require("FileNode/query", "FileNode/get")
         with client.batch() as batch:
-            found = batch.add("FileNode/query", {"filter": condition, **extra})
+            found = batch.add("FileNode/query", {"filter": wanted} if wanted else {})
             handle = batch.add("FileNode/get", {"ids": found.ref_ids(), "properties": PROPERTIES})
         nodes: list[Node] = wire_of(handle.result)["list"]
-        return nodes
+        return [node for node in nodes if node.get("parentId") is None] if top else nodes
 
 
 def names(path: str) -> list[str]:

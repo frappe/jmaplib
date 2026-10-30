@@ -61,8 +61,9 @@ class TestPrincipal:
         result = invoke("principal", "show", "bob", "--json")
         assert result.json()["email"] == "bob@example.com"
 
-    def test_show_by_address_or_name(self, invoke):
+    def test_show_by_address_or_name(self, invoke, server):
         assert invoke("principal", "show", "CAROL@example.com", "--json").json()["id"] == "carol"
+        assert last_call(server, "Principal/query")["filter"] == {"email": "CAROL@example.com"}
         assert invoke("principal", "show", "team bob", "--json").json()["id"] == "team"
 
     def test_show_a_single_partial_match(self, invoke):

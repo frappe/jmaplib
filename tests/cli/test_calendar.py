@@ -245,6 +245,14 @@ class TestEventDelete:
         assert "deleted Dentist" in result.err
         assert "e1" not in cal.events
 
+    def test_its_own_base_id_is_not_an_occurrence(self, invoke, cal):
+        """Stalwart sets ``baseEventId`` to the event's own id."""
+        cal.events["e1"]["baseEventId"] = "e1"
+        fields = dict(row[:2] for row in rows(invoke("event", "show", "e1", env=LONDON).out))
+        assert fields["occurrence of"] == ""
+        assert invoke("event", "delete", "e1", "--yes").code == 0
+        assert "e1" not in cal.events
+
     def test_an_occurrence_is_refused_without_asking_for_it(self, invoke, cal):
         result = invoke("event", "delete", "e2.2026-11-03T10:00:00", "--yes")
         assert result.code == 2

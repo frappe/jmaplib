@@ -1,8 +1,9 @@
 """An in-memory file tree behind the fake server, for driving the file commands.
 
 Implements enough of draft-ietf-jmap-filenode to be honest about what the
-commands send: queries by parent and name, ``depth``, creation references in
-``parentId``, the inferred node type, ``onExists`` and ``onDestroyRemoveChildren``.
+commands send: queries by parent and name (refusing a null parentId, as
+Stalwart does), creation references in ``parentId``, the inferred node type,
+``onExists`` and ``onDestroyRemoveChildren``.
 It is test code; correctness beyond that is not a goal.
 """
 
@@ -44,13 +45,14 @@ class FileStore:
         self.add(node_id, name, parent, blobId=blob_id, size=len(content), type="text/plain")
 
     def query(self, args: dict[str, Any], _server: FakeJMAPServer) -> dict[str, Any]:
-        condition = args["filter"]
-        parents = {condition["parentId"]}
-        found: list[str] = []
-        for _ in range(args.get("depth", 1)):
-            level = [key for key, node in self.nodes.items() if node["parentId"] in parents]
-            found += level
-            parents = set(level)
+        condition = args.get("filter") or {}
+        # As Stalwart does: a null parentId is not a valid filter.
+        assert condition.get("parentId", "") is not None, "a null parentId is refused"
+        found = [
+            key
+            for key, node in self.nodes.items()
+            if "parentId" not in condition or node["parentId"] == condition["parentId"]
+        ]
         if "name" in condition:
             found = [key for key in found if self.nodes[key]["name"] == condition["name"]]
         return {
