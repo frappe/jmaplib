@@ -5,6 +5,20 @@ with one deliberate exception: capabilities marked `experimental=True` track IET
 drafts and are excluded from the compatibility promise. See `jmap.SPEC_REVISIONS`
 for exactly which revision of each spec this build implements.
 
+## Unreleased
+
+### Added
+
+- **A `jmap` command.** `pip install 'jmaplib[cli]'` installs it, and
+  `python -m jmap` runs it too. This first part has named accounts with secrets in
+  the OS keyring (`jmap account add/list/show/test/login/set-default/remove`),
+  mailboxes (`jmap mailbox list/show`), the server's session and capabilities
+  (`jmap server session/capabilities/conformance/echo/refresh`), and raw method
+  calls (`jmap api call`). `--json` prints the server's own objects, and the exit
+  code says what kind of failure happened. See `docs/cli.md`.
+- **The `cli` extra** now also installs `keyring`, `prompt_toolkit`, `tomli-w` and
+  `markdown-it-py`. The library itself still needs only `httpx` and `pydantic`.
+
 ## 3.0.1
 
 A major release for the license alone: the API is unchanged from 2.1.0, and the
