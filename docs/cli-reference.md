@@ -1086,7 +1086,11 @@ Add messages to another mailbox too, keeping them where they are.
 | Argument | Description |
 |---|---|
 | `MESSAGES...` | Numbers from the last listing (3, 1-5), or ids. Required. |
-| `MAILBOX` | Where to add them. Required. |
+| `MAILBOX` | Where to add them; with --to-account, there. Required. |
+
+| Option | Value | Description |
+|---|---|---|
+| `--to-account` | `TEXT` | Another JMAP account of this session: id or name. |
 
 ### jmap mail delete
 
@@ -1215,6 +1219,9 @@ List messages, newest first: the inbox, or the mailbox --in names.
 | `--all` |  | Every match, page after page. |
 | `--count` |  | Print the number of matches. |
 | `--threads` |  | One row per conversation. |
+| `--anchor` | `TEXT` | Start the page at this message: a listing number or an id. |
+| `--anchor-offset` | `N` | Start this many messages after --anchor; negative is before. |
+| `--columns` | `TEXT` | Comma list: flags, date, from, to, subject, preview, size, id, thread. |
 
 ### jmap mail move
 
@@ -1261,6 +1268,9 @@ Show messages: headers, the body as text, and the attachments.
 |---|---|---|
 | `--html` |  | Read the HTML part, as text. |
 | `--raw` |  | The message source, as sent. |
+| `--part` | `TEXT` | One body part's bytes, by its part id (2, 1.3). |
+| `--save` | `PATH` | With --raw or --part: write to this file, not stdout. |
+| `--force` |  | Replace the --save file. |
 | `--headers` | `TEXT` | More headers to show, comma separated. |
 | `--all-headers` |  | Every header. |
 | `--mark-seen` / `--no-mark-seen` |  | Mark them read. Default: `--mark-seen`. |
@@ -1298,6 +1308,9 @@ with OR, NOT or -term, and (parentheses). A bare word searches everything.
 | `--all` |  | Every match, page after page. |
 | `--count` |  | Print the number of matches. |
 | `--threads` |  | One row per conversation. |
+| `--anchor` | `TEXT` | Start the page at this message: a listing number or an id. |
+| `--anchor-offset` | `N` | Start this many messages after --anchor; negative is before. |
+| `--columns` | `TEXT` | Comma list: flags, date, from, to, subject, preview, size, id, thread. |
 
 ### jmap mail seen
 

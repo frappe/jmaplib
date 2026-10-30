@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from jmap.client import BatchContext, JMAPClient
+    from jmap.core.ids import Id
     from jmap.core.invocation import Handle
 
 #: What every mailbox listing and reference needs, and nothing slower to compute.
@@ -51,9 +52,10 @@ class MailboxIndex:
         self._by_id: dict[str, Mailbox] = {str(box["id"]): box for box in mailboxes}
 
     @classmethod
-    def queue(cls, batch: BatchContext) -> Handle[Any]:
+    def queue(cls, batch: BatchContext, *, account_id: Id | None = None) -> Handle[Any]:
         """Add the ``Mailbox/get`` to a batch, so it shares a request with other calls."""
-        return batch.add("Mailbox/get", {"ids": None, "properties": list(MAILBOX_PROPERTIES)})
+        arguments = {"ids": None, "properties": list(MAILBOX_PROPERTIES)}
+        return batch.add("Mailbox/get", arguments, account_id=account_id)
 
     @classmethod
     def from_handle(cls, handle: Handle[Any]) -> MailboxIndex:

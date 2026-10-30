@@ -13,11 +13,13 @@ from typing import Annotated, Any
 
 import typer
 
+from jmap.capabilities.mail import MAIL_URN
 from jmap.cli.commands import cli, report_set
 from jmap.cli.commands.mail import Selection, app, select
+from jmap.cli.connect import find_account
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError, UsageError
-from jmap.cli.ids import Mailbox
+from jmap.cli.ids import Mailbox, MailboxIndex
 from jmap.core.ids import Id
 from jmap.core.patch import InvalidKeywordError, keyword_patch, mailbox_patch, parse_keyword
 
@@ -49,12 +51,19 @@ def move(
 def copy(
     ctx: typer.Context,
     messages: Messages,
-    mailbox: Annotated[str, typer.Argument(help="Where to add them.")],
+    mailbox: Annotated[str, typer.Argument(help="Where to add them; with --to-account, there.")],
+    account: Annotated[
+        str | None,
+        typer.Option("--to-account", help="Another JMAP account of this session: id or name."),
+    ] = None,
 ) -> None:
     """Add messages to another mailbox too, keeping them where they are."""
     context = cli(ctx)
-    target = context.mailbox(mailbox)
     selection = select(context, messages)
+    if account is not None:
+        _copy_across(context, selection, mailbox, account)
+        return
+    target = context.mailbox(mailbox)
     patch = mailbox_patch(add=[Id(str(target["id"]))])
     _update(context, selection, patch, f"copied {{n}} message(s) to {target['name']}")
 
@@ -205,6 +214,27 @@ def _file(
             patch.update(mailbox_patch(add=[Id(to)], remove=[Id(origin)]))
         where = f" to {target['name']}"
     _update(context, selection, patch, f"{verb} {{n}} message(s){where}")
+
+
+def _copy_across(context: CLIContext, selection: Selection, mailbox: str, account: str) -> None:
+    """``Email/copy`` into another JMAP account: one request finds the mailbox, one copies."""
+    client = context.require("Email/copy")
+    target = find_account(client.session, account)
+    source = client.default_account or client.session.primary_account_for(MAIL_URN)
+    if target == source:
+        raise UsageError("--to-account names this account", hint="leave it out to copy here")
+    with client.batch() as batch:
+        handle = MailboxIndex.queue(batch, account_id=target)
+    there = MailboxIndex.from_handle(handle).resolve(mailbox)
+    create = {
+        f"c{number}": {"id": email_id, "mailboxIds": {str(there["id"]): True}}
+        for number, email_id in enumerate(selection.ids)
+    }
+    with client.batch() as batch:
+        copied = batch.add(
+            "Email/copy", {"fromAccountId": source, "create": create}, account_id=target
+        )
+    report_set(context, copied.result, f"copied {{n}} message(s) to {there['name']} in {account}")
 
 
 def _update(context: CLIContext, selection: Selection, patch: dict[str, Any], done: str) -> None:

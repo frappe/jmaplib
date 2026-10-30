@@ -105,6 +105,41 @@ class TestList:
         assert len(lines(result)) == 4
         assert "1-4 of 4" in result.err
 
+    def test_an_anchor_starts_the_page(self, invoke, server):
+        invoke("ls", "-A", "--sort", "date")
+        rows = lines(invoke("ls", "-A", "--sort", "date", "--anchor", "3", "--anchor-offset", "-1"))
+        assert [(row[0], row[4]) for row in rows[:2]] == [
+            ("2", "Invoice for October"),
+            ("3", "Re: Invoice for October"),
+        ]
+        query = server.requests[-1]["methodCalls"][0][1]
+        assert (query["anchor"], query["anchorOffset"]) == ("e2", -1)
+        assert "position" not in query
+        assert invoke("read", "2", "--json").json()["id"] == "e1"
+        assert lines(invoke("ls", "-A", "--sort", "date", "--anchor", "e3"))[0][0] == "4"
+
+    @pytest.mark.parametrize("extra", [("--page", "2"), ("--all",)])
+    def test_an_anchor_is_the_whole_position(self, invoke, extra):
+        result = invoke("ls", "--anchor", "e1", *extra)
+        assert result.code == 2
+        assert "--anchor says where the page starts" in result.err
+
+    def test_chosen_columns(self, invoke):
+        rows = lines(invoke("ls", "--columns", "id, thread,SUBJECT,preview"))
+        assert rows[0] == ["1", "e2", "t1", "Re: Invoice for October", "Hello there."]
+        table = invoke("ls", "--columns", "to,size", terminal=True).out
+        assert "Alice" in table
+        assert "1012B" in table
+
+    @pytest.mark.parametrize(
+        ("columns", "message"), [("subject,nope", "no column named nope"), (",", "is empty")]
+    )
+    def test_unknown_columns(self, invoke, columns, message):
+        result = invoke("ls", "--columns", columns)
+        assert result.code == 2
+        assert message in result.err
+        assert "choose from flags, date" in result.err
+
     def test_count(self, invoke):
         assert invoke("ls", "-A", "--count").out == "4\n"
 
@@ -144,6 +179,10 @@ class TestSearch:
         names = [call[0] for call in server.requests[-1]["methodCalls"]]
         assert names == ["Email/query", "Email/get", "SearchSnippet/get"]
         assert "no messages" not in result.err
+
+    def test_snippets_in_chosen_columns(self, invoke):
+        rows = lines(invoke("search", "invoice", "--columns", "subject"))
+        assert rows[0] == ["1", "Re: Invoice for October"]
 
     def test_plain_snippets(self, invoke):
         rows = lines(invoke("mail", "search", "Invoice"))

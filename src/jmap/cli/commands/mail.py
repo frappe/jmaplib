@@ -8,20 +8,17 @@ other mail commands live in :mod:`.mail_read` and :mod:`.mail_triage`.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
 from typing import Annotated, Any, Final
 
 import typer
-from rich.markup import escape
 
-from jmap.cli import format as fmt
 from jmap.cli.commands import cli
+from jmap.cli.commands.mail_columns import COLUMNS, ListingColumns, footer
 from jmap.cli.context import CLIContext
-from jmap.cli.errors import NotFoundError
+from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.ids import Listing, Mailbox, Ref, parse_refs
-from jmap.cli.output import Column, OutputFormat, View, wire_of
+from jmap.cli.output import OutputFormat, View, wire_of
 from jmap.core.ids import parse_id
 from jmap.mail.ops import queue_list
 from jmap.mail.query import And, Node, Term, mentions, needs_snippets, parse, parse_sort, to_filter
@@ -50,6 +47,13 @@ PageOption = Annotated[int, typer.Option(min=1, help="Which page of --limit mess
 AllOption = Annotated[bool, typer.Option("--all", help="Every match, page after page.")]
 CountOption = Annotated[bool, typer.Option("--count", help="Print the number of matches.")]
 ThreadsOption = Annotated[bool, typer.Option("--threads", help="One row per conversation.")]
+AnchorOption = Annotated[
+    str | None, typer.Option(help="Start the page at this message: a listing number or an id.")
+]
+OffsetOption = Annotated[
+    int, typer.Option(help="Start this many messages after --anchor; negative is before.")
+]
+ColumnsOption = Annotated[str | None, typer.Option(help=f"Comma list: {', '.join(COLUMNS)}.")]
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +81,31 @@ class Filters:
             ("has", "attachment" if self.attachment else None),
         ]
         return [Term(key, value) for key, value in pairs if value]
+
+
+@dataclass(frozen=True, slots=True)
+class Paging:
+    """Which page of the matches, in which order, and how to show it."""
+
+    sort: str = "-date"
+    limit: int = PAGE
+    page: int = 1
+    every: bool = False
+    count: bool = False
+    threads: bool = False
+    anchor: str | None = None
+    anchor_offset: int = 0
+    columns: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Fetched:
+    """One listing's rows, in query order, and what the server said about them."""
+
+    rows: list[dict[str, Any]]
+    first: int
+    total: int | None
+    snippets: dict[str, dict[str, Any]] = field(default_factory=dict[str, dict[str, Any]])
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,21 +141,14 @@ def list_(
     every: AllOption = False,
     count: CountOption = False,
     threads: ThreadsOption = False,
+    anchor: AnchorOption = None,
+    anchor_offset: OffsetOption = 0,
+    columns: ColumnsOption = None,
 ) -> None:
     """List messages, newest first: the inbox, or the mailbox --in names."""
     filters = Filters(sender, recipient, subject, unread, flagged, attachment, before, after)
-    run_listing(
-        cli(ctx),
-        words,
-        filters,
-        Scope(mailbox, everywhere),
-        sort,
-        limit,
-        page,
-        every,
-        count,
-        threads,
-    )
+    paging = Paging(sort, limit, page, every, count, threads, anchor, anchor_offset, columns)
+    run_listing(cli(ctx), words, filters, Scope(mailbox, everywhere), paging)
 
 
 @app.command()
@@ -147,6 +169,9 @@ def search(
     every: AllOption = False,
     count: CountOption = False,
     threads: ThreadsOption = False,
+    anchor: AnchorOption = None,
+    anchor_offset: OffsetOption = 0,
+    columns: ColumnsOption = None,
 ) -> None:
     """Search every mailbox, and highlight what matched.
 
@@ -156,7 +181,8 @@ def search(
     """
     filters = Filters(sender, recipient, subject, unread, flagged, attachment, before, after)
     scope = Scope(None, everywhere=True, highlight=True)
-    run_listing(cli(ctx), words, filters, scope, sort, limit, page, every, count, threads)
+    paging = Paging(sort, limit, page, every, count, threads, anchor, anchor_offset, columns)
+    run_listing(cli(ctx), words, filters, scope, paging)
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,13 +197,10 @@ def run_listing(
     words: list[str] | None,
     filters: Filters,
     scope: Scope,
-    sort: str,
-    limit: int,
-    page: int,
-    every: bool,
-    count: bool,
-    threads: bool,
+    paging: Paging,
 ) -> None:
+    if paging.anchor is not None and (paging.every or paging.page != 1):
+        raise UsageError("--anchor says where the page starts", hint="leave out --page and --all")
     text = query_text(words or [])
     node = combine(parse(text), filters.terms())
     listed = None
@@ -190,43 +213,39 @@ def run_listing(
 
     query: dict[str, Any] = {
         "filter": to_filter(node, mailbox_id=mailbox_id) if node else None,
-        "sort": parse_sort(sort),
-        "collapse_threads": threads,
+        "sort": parse_sort(paging.sort),
+        "collapse_threads": paging.threads,
     }
     client = context.require("Email/query", "Email/get")
-    if count:
+    if paging.count:
         with client.batch() as batch:
             handles = queue_list(batch, limit=0, **query)
         context.out.file.write(f"{handles.query.result.total}\n")
         return
+    if paging.anchor is not None:
+        query["anchor"] = select(context, [paging.anchor]).ids[0]
+        query["anchor_offset"] = paging.anchor_offset
     highlight = (
         scope.highlight
         and needs_snippets(node)
         and client.capabilities.supports("SearchSnippet/get")
     )
-    position = (page - 1) * limit
-    rows, total, snippets = _fetch(context, query, position, limit, every, highlight)
-    _show(context, rows, snippets, first=position + 1, total=total, listed=listed, sort=sort)
+    fetched = _fetch(context, query, paging, highlight)
+    _show(context, fetched, listed, paging)
     context.cursor.record(
         Listing(
-            ids=tuple(str(row["id"]) for row in rows),
-            first=position + 1,
+            ids=tuple(str(row["id"]) for row in fetched.rows),
+            first=fetched.first,
             mailbox_id=str(listed["id"]) if listed else None,
             query=text,
         )
     )
 
 
-def _fetch(
-    context: CLIContext,
-    query: dict[str, Any],
-    position: int,
-    limit: int,
-    every: bool,
-    highlight: bool,
-) -> tuple[list[dict[str, Any]], int | None, dict[str, dict[str, Any]]]:
-    """Rows in query order, the total, and snippets by email id."""
+def _fetch(context: CLIContext, query: dict[str, Any], paging: Paging, highlight: bool) -> Fetched:
+    """The page asked for, or with ``--all`` every page."""
     client = context.client()
+    position = (paging.page - 1) * paging.limit
     rows: list[dict[str, Any]] = []
     snippets: dict[str, dict[str, Any]] = {}
     while True:
@@ -234,89 +253,31 @@ def _fetch(
             handles = queue_list(
                 batch,
                 position=position + len(rows),
-                limit=ALL_PAGE if every else limit,
-                calculate_total=not every,
+                limit=ALL_PAGE if paging.every else paging.limit,
+                calculate_total=not paging.every,
                 snippets=highlight,
                 **query,
             )
-        ids = handles.query.result.ids
+        result = handles.query.result
         found = {item["id"]: item for item in wire_of(handles.emails.result)["list"]}
-        rows += [found[email_id] for email_id in ids if email_id in found]
+        rows += [found[email_id] for email_id in result.ids if email_id in found]
         if handles.snippets is not None:
             for snippet in wire_of(handles.snippets.result)["list"]:
                 snippets[snippet["emailId"]] = snippet
-        if not every:
-            return rows, handles.query.result.total, snippets
-        if not ids:
-            return rows, len(rows), snippets
+        if not paging.every:
+            # The server's position: with --anchor, only it knows where the page starts.
+            return Fetched(rows, result.position + 1, result.total, snippets)
+        if not result.ids:
+            return Fetched(rows, position + 1, len(rows), snippets)
 
 
-def _show(
-    context: CLIContext,
-    rows: list[dict[str, Any]],
-    snippets: dict[str, dict[str, Any]],
-    *,
-    first: int,
-    total: int | None,
-    listed: Mailbox | None,
-    sort: str,
-) -> None:
-    table = context.renderer.format is OutputFormat.TABLE
-    outgoing = listed is not None and listed.get("role") in {"sent", "drafts"}
-    columns = [
-        Column("FLAGS", "keywords", fmt.flags),
-        _date_column(table),
-        _address_column("to" if outgoing else "from"),
-        _snippet_column("SUBJECT", "subject", snippets),
-    ]
-    if snippets:
-        columns.append(_snippet_column("MATCH", "preview", snippets))
-    columns.append(
-        Column("SIZE", "size", (lambda r: fmt.size(r.get("size"))) if table else None, "right")
+def _show(context: CLIContext, fetched: Fetched, listed: Mailbox | None, paging: Paging) -> None:
+    builder = ListingColumns(
+        table=context.renderer.format is OutputFormat.TABLE, snippets=fetched.snippets
     )
-    footer = _footer(rows, first, total, listed, sort)
-    context.renderer.render(View(rows, columns, first_number=first, footer=footer))
-
-
-def _date_column(table: bool) -> Column:
-    """People's dates in a table; the server's ISO dates in plain text."""
-    if not table:
-        return Column("DATE", "receivedAt")
-    now = datetime.now().astimezone()
-    return Column("DATE", "receivedAt", lambda row: fmt.when(row.get("receivedAt"), now=now))
-
-
-def _address_column(key: str) -> Column:
-    return Column(key.upper(), key, lambda row: fmt.address(row.get(key)))
-
-
-def _snippet_column(header: str, key: str, snippets: dict[str, dict[str, Any]]) -> Column:
-    """``key`` with search matches highlighted where the server sent a snippet."""
-
-    def snippet(row: Mapping[str, Any]) -> str | None:
-        found: str | None = (snippets.get(row["id"]) or {}).get(key)
-        return found
-
-    def plain(row: Mapping[str, Any]) -> str:
-        found = snippet(row)
-        return fmt.snippet_plain(found) if found else str(row.get(key) or "")
-
-    def markup(row: Mapping[str, Any]) -> str:
-        found = snippet(row)
-        return fmt.snippet_markup(found) if found else escape(str(row.get(key) or ""))
-
-    return Column(header, key, plain, markup=markup)
-
-
-def _footer(
-    rows: list[dict[str, Any]], first: int, total: int | None, listed: Mailbox | None, sort: str
-) -> str:
-    shown = f"{first}-{first + len(rows) - 1}" if rows else "no messages"
-    parts = [shown + (f" of {total}" if rows and total is not None else "")]
-    if listed:
-        parts.append(str(listed.get("name")))
-    parts.append(sort)
-    return " · ".join(parts)
+    columns = builder.named(paging.columns) if paging.columns else builder.default(listed)
+    note = footer(fetched.rows, fetched.first, fetched.total, listed, paging.sort)
+    context.renderer.render(View(fetched.rows, columns, first_number=fetched.first, footer=note))
 
 
 def query_text(words: list[str]) -> str:

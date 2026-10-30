@@ -8,7 +8,7 @@ import typer
 
 from jmap.cli.commands import cli, report_set
 from jmap.cli.commands.compose import Attach, Bcc, Body, BodyFile, Cc, Edit, Sender, Subject, To
-from jmap.cli.commands.mail import Filters, Scope, run_listing, select
+from jmap.cli.commands.mail import Filters, Paging, Scope, run_listing, select
 from jmap.cli.commands.sending import (
     Message,
     Prelude,
@@ -33,7 +33,7 @@ One = Annotated[str, typer.Argument(help="The draft: a listing number or an id."
 @app.command("list")
 def list_(ctx: typer.Context) -> None:
     """List the drafts, newest first, numbered."""
-    run_listing(cli(ctx), None, Filters(), Scope("drafts"), "-date", 25, 1, False, False, False)
+    run_listing(cli(ctx), None, Filters(), Scope("drafts"), Paging())
 
 
 @app.command()

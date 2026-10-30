@@ -11,6 +11,8 @@ from tests.fake.mailstore import MailStore, email
 from .conftest import ScriptedPrompter
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from jmap.testing import FakeJMAPServer
 
 pytestmark = pytest.mark.usefixtures("account")
@@ -77,6 +79,54 @@ class TestCopy:
     def test_adds_only(self, invoke, store):
         assert invoke("mail", "copy", "e2", "archive").code == 0
         assert boxes(store, "e2") == {"inbox", "arch"}
+
+
+class TestCopyToAccount:
+    @pytest.fixture(autouse=True)
+    def shared(self, server: FakeJMAPServer) -> list[dict[str, Any]]:
+        """A second JMAP account, "Shared", with one mailbox; records each Email/copy."""
+        server.accounts["s"] = {"name": "Shared", "isPersonal": False, "isReadOnly": False}
+        mine = server.handlers["Mailbox/get"]
+        theirs = {"id": "m9", "name": "Team", "role": None, "parentId": None}
+        copies: list[dict[str, Any]] = []
+
+        def mailboxes(args: dict[str, Any], srv: FakeJMAPServer) -> Mapping[str, Any]:
+            if args["accountId"] != "s":
+                return mine(args, srv)
+            return {"accountId": "s", "state": "x", "list": [theirs], "notFound": []}
+
+        def copy(args: dict[str, Any], _srv: FakeJMAPServer) -> dict[str, Any]:
+            copies.append(args)
+            created = {key: {"id": f"x-{item['id']}"} for key, item in args["create"].items()}
+            return {"fromAccountId": "a", "accountId": "s", "newState": "n", "created": created}
+
+        server.handle("Mailbox/get", mailboxes)
+        server.handle("Email/copy", copy)
+        return copies
+
+    def test_into_a_mailbox_there(self, invoke, shared):
+        result = invoke("mail", "copy", "e1", "e2", "team", "--to-account", "shared")
+        assert result.code == 0, result.err
+        assert "copied 2 message(s) to Team in shared" in result.err
+        [args] = shared
+        assert (args["accountId"], args["fromAccountId"]) == ("s", "a")
+        assert args["create"] == {
+            "c0": {"id": "e1", "mailboxIds": {"m9": True}},
+            "c1": {"id": "e2", "mailboxIds": {"m9": True}},
+        }
+
+    def test_json_is_the_copy_response(self, invoke):
+        made = invoke("mail", "copy", "e2", "team", "--to-account", "s", "--json").json()
+        assert made["created"] == {"c0": {"id": "x-e2"}}
+
+    def test_not_this_account(self, invoke):
+        result = invoke("mail", "copy", "e2", "archive", "--to-account", "a")
+        assert result.code == 2
+        assert "names this account" in result.err
+
+    def test_an_unknown_account_or_mailbox(self, invoke):
+        assert invoke("mail", "copy", "e2", "team", "--to-account", "nobody").code == 9
+        assert invoke("mail", "copy", "e2", "nowhere", "--to-account", "s").code == 9
 
 
 class TestArchive:

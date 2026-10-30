@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 import typer
@@ -12,13 +14,14 @@ from jmap.cli import format as fmt
 from jmap.cli.commands import cli
 from jmap.cli.commands.mail import app, select
 from jmap.cli.context import CLIContext
-from jmap.cli.errors import UsageError
+from jmap.cli.errors import NotFoundError, UsageError
+from jmap.cli.files import write_file
 from jmap.cli.ids import Listing
 from jmap.cli.output import Column, OutputFormat, View, wire_of
 from jmap.core.narrow import as_list
 from jmap.mail.ops import DEFAULT_MAX_BODY_BYTES, LIST_PROPERTIES, queue_read, queue_thread
 from jmap.mail.render import attachments_of, body_text
-from jmap.models.mail.objects import Email
+from jmap.models.mail.objects import Email, EmailBodyPart
 
 Messages = Annotated[
     list[str], typer.Argument(help="Numbers from the last listing (3, 1-5), or ids.")
@@ -31,6 +34,13 @@ def read(
     messages: Messages,
     html: Annotated[bool, typer.Option("--html", help="Read the HTML part, as text.")] = False,
     raw: Annotated[bool, typer.Option("--raw", help="The message source, as sent.")] = False,
+    part: Annotated[
+        str | None, typer.Option(help="One body part's bytes, by its part id (2, 1.3).")
+    ] = None,
+    save: Annotated[
+        Path | None, typer.Option(help="With --raw or --part: write to this file, not stdout.")
+    ] = None,
+    force: Annotated[bool, typer.Option("--force", help="Replace the --save file.")] = False,
     headers: Annotated[
         str | None, typer.Option(help="More headers to show, comma separated.")
     ] = None,
@@ -45,8 +55,13 @@ def read(
     """Show messages: headers, the body as text, and the attachments."""
     context = cli(ctx)
     selection = select(context, messages)
-    if raw:
-        _raw(context, selection.ids)
+    if raw or part is not None:
+        data = _part(context, selection.ids, part) if part else _raw(context, selection.ids)
+        if save is None:
+            context.write_bytes(data)
+        else:
+            write_file(save, data, force=force)
+            context.renderer.note(f"saved {save}")
         return
     client = context.require("Email/get")
     account = client.default_account
@@ -168,7 +183,7 @@ def _list(context: CLIContext, rows: list[dict[str, Any]]) -> None:
     context.renderer.render(View(rows, columns, first_number=1))
 
 
-def _raw(context: CLIContext, ids: list[str]) -> None:
+def _raw(context: CLIContext, ids: list[str]) -> bytes:
     if len(ids) != 1:
         raise UsageError("--raw shows one message at a time")
     client = context.require("Email/get")
@@ -177,9 +192,35 @@ def _raw(context: CLIContext, ids: list[str]) -> None:
     [email] = handle.result.items or [None]
     if email is None or not email.blob_id:
         raise UsageError(f"the server returned no source for {ids[0]}")
-    context.write_bytes(
-        client.download(email.blob_id, name="message.eml", content_type="message/rfc822")
-    )
+    return client.download(email.blob_id, name="message.eml", content_type="message/rfc822")
+
+
+def _part(context: CLIContext, ids: list[str], part_id: str) -> bytes:
+    """The decoded bytes of one part, found in the message's ``bodyStructure``."""
+    if len(ids) != 1:
+        raise UsageError("--part reads one message at a time")
+    client = context.require("Email/get")
+    with client.batch() as batch:
+        handle = batch.add("Email/get", {"ids": ids, "properties": ["bodyStructure"]})
+    [email] = handle.result.items or [None]
+    root = email.body_structure if email is not None else None
+    parts = [part for part in _leaves(root) if part.part_id and part.blob_id]
+    found = next((part for part in parts if part.part_id == part_id), None)
+    if found is None:
+        known = ", ".join(f"{part.part_id} ({part.type})" for part in parts)
+        hint = f"its parts are: {known}" if known else None
+        raise NotFoundError(f"message {ids[0]} has no part {part_id!r}", hint=hint)
+    kind = found.type or "application/octet-stream"
+    return client.download(str(found.blob_id), name=found.name or "part", content_type=kind)
+
+
+def _leaves(part: EmailBodyPart | None) -> Iterator[EmailBodyPart]:
+    """``part`` and every part under it, depth first."""
+    if part is None:
+        return
+    yield part
+    for child in part.sub_parts or []:
+        yield from _leaves(child)
 
 
 def _attachments(context: CLIContext, email: Email) -> None:

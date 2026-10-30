@@ -28,7 +28,9 @@ for exactly which revision of each spec this build implements.
   those numbers: `jmap read 3`, `jmap move 1-4 Archive`, `jmap flag 2,5`. The
   other verbs are `thread`, `copy`, `archive`, `delete`, `seen`, `unseen`,
   `junk`, `notjunk` and `keyword`. A move is a patch, so a message filed in
-  several mailboxes stays in the others.
+  several mailboxes stays in the others. `mail list --anchor` starts a page at
+  a message, `--columns` picks the columns, `mail read --part` prints one part
+  of a message, and `mail copy --to-account` copies into another JMAP account.
   `jmap mailbox list/show/create/rename/move/delete/subscribe/unsubscribe/empty`
   manages mailboxes.
 - **Writing mail.** `jmap compose` (in your editor), `jmap send`,

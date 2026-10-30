@@ -71,17 +71,34 @@ a whole query, or a value with spaces: `'subject:"weekly report"'`.
 `flagged` and `unread`, each with `-` for descending; the default is `-date`.
 `-n` sets the page size, `--page` picks a page, `--all` fetches every page,
 `--count` prints only the number of matches, and `--threads` shows one row per
-conversation.
+conversation. `--anchor MSG` starts the page at a message instead of a page
+number, and `--anchor-offset N` moves the start N messages later (or earlier,
+when N is negative). The server tells the listing where that is, so the numbers
+stay right.
+
+`--columns` picks the columns and their order from `flags`, `date`, `from`,
+`to`, `subject`, `preview`, `size`, `id` and `thread`:
+
+```console
+$ jmap ls --columns date,from,subject,preview
+```
 
 `jmap read` prints the headers, the body as text (HTML is converted; `--html`
 prefers the HTML part), and the attachments, then marks the message read
 (`--no-mark-seen` does not). `--headers List-Id,X-Spam` adds headers, and
-`--raw` prints the message source.
+`--raw` prints the message source. `--part ID` prints the bytes of one part of
+the message, by its part id; a wrong id lists the message's parts. `--save FILE`
+writes `--raw` or `--part` output to a file instead.
 
 Filing commands patch a message, never rewrite it. `jmap move 3 Archive` takes
 the message out of the mailbox it was listed from and puts it in Archive; a
 message also filed elsewhere stays there. When the source is unknown (you named
 it by id), give `--from MAILBOX`, or the message ends up in the target alone.
+
+`jmap mail copy MSG... MAILBOX` adds messages to another mailbox. With
+`--to-account ACCOUNT`, it copies them into a mailbox of another JMAP account in
+the same session (by id or name, as `jmap account show` lists them), with
+`Email/copy`. The originals stay where they are.
 
 ## Writing mail
 
@@ -614,7 +631,7 @@ The [command reference](cli-reference.md) gives every argument and option.
 | `jmap mail read MSG...` (`jmap read`) | Headers, body and attachments; marks them read. |
 | `jmap mail thread MSG` (`jmap thread`) | The conversation, oldest first; `--read` shows it all. |
 | `jmap mail move MSG... MAILBOX` (`jmap move`) | File messages elsewhere. |
-| `jmap mail copy MSG... MAILBOX` | Add them to another mailbox too. |
+| `jmap mail copy MSG... MAILBOX [--to-account ACCOUNT]` | Add them to another mailbox too, or copy them to another JMAP account. |
 | `jmap mail archive MSG...` (`jmap archive`) | Move them to the archive mailbox. |
 | `jmap mail delete MSG... [--permanent]` (`jmap delete`) | Move them to Trash, or destroy them. |
 | `jmap mail flag/unflag MSG...` (`jmap flag`) | Set or clear the flag. |

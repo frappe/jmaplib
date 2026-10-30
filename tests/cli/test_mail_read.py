@@ -115,6 +115,38 @@ class TestRaw:
         assert invoke("read", "e1", "--raw").code == 2
         assert invoke("read", "gone", "--raw").code == 2
 
+    def test_saved_to_a_file(self, invoke, server, tmp_path):
+        server.blobs["blob-e1"] = (b"Subject: Invoice\r\n\r\nHi", "message/rfc822")
+        target = tmp_path / "m.eml"
+        result = invoke("read", "e1", "--raw", "--save", str(target))
+        assert result.code == 0, result.err
+        assert f"saved {target}" in result.err
+        assert target.read_bytes() == b"Subject: Invoice\r\n\r\nHi"
+        assert invoke("read", "e1", "--raw", "--save", str(target)).code == 2
+        assert invoke("read", "e1", "--raw", "--save", str(target), "--force").code == 0
+
+
+class TestPart:
+    def test_one_part_by_its_id(self, invoke, server):
+        server.blobs["b-e1-3"] = (b"%PDF-1.7", "application/pdf")
+        assert invoke("read", "e1", "--part", "3").out == "%PDF-1.7"
+        call = server.requests[-1]["methodCalls"][0][1]
+        assert call["properties"] == ["bodyStructure"]
+
+    def test_an_unknown_part_names_the_others(self, invoke):
+        result = invoke("read", "e1", "--part", "9")
+        assert result.code == 9
+        assert "message e1 has no part '9'" in result.err
+        assert "1 (text/plain), 2 (text/html), 3 (application/pdf)" in result.err
+
+    def test_a_missing_message_has_no_parts(self, invoke):
+        result = invoke("read", "gone", "--part", "1")
+        assert result.code == 9
+        assert "its parts are" not in result.err
+
+    def test_one_at_a_time(self, invoke):
+        assert invoke("read", "e1", "e2", "--part", "1").code == 2
+
 
 class TestThread:
     def test_oldest_first_and_numbered(self, invoke):
