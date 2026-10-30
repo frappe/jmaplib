@@ -12,6 +12,7 @@ import json
 import ssl
 import time
 from typing import TYPE_CHECKING, Any, Final
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
@@ -20,6 +21,7 @@ from jmap.cli.prompts import srv_confirmation
 from jmap.client import JMAPClient
 from jmap.core.ids import Id
 from jmap.core.narrow import is_list, is_object
+from jmap.discovery import WELL_KNOWN_PATH
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -70,13 +72,25 @@ def open_client(
         "experimental": account.experimental,
     }
     if account.url:
-        client = JMAPClient.connect(account.url, **options)
+        client = JMAPClient.connect(session_url(account.url), **options)
     else:
         confirm = srv_confirmation(prompter, account.trusted_srv_targets)
         client = JMAPClient.discover(account.address, confirm_srv_target=confirm, **options)
     if account.account_id:
         select_account(client, find_account(client.session, account.account_id))
     return client
+
+
+def session_url(url: str) -> str:
+    """``url``, or its ``/.well-known/jmap`` when it names only a host.
+
+    A server's root is usually its web app, which answers with HTML rather
+    than a session; RFC 8620 §2.2 puts the session behind the well-known path.
+    """
+    parts = urlsplit(url)
+    if parts.path.strip("/"):
+        return url
+    return urlunsplit(parts._replace(path=WELL_KNOWN_PATH))
 
 
 def find_account(session: Session, wanted: str) -> Id:

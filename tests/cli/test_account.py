@@ -150,6 +150,21 @@ class TestAdd:
         assert result.code == 2
         assert message in result.err
 
+    @pytest.mark.parametrize(
+        ("name", "hint"),
+        [
+            ("sagar@example.com", "pass --username sagar@example.com"),
+            ("work", "pass --username, or --address"),
+        ],
+    )
+    def test_no_username_fails_before_asking(self, invoke, name, hint):
+        prompter = ScriptedPrompter(secrets=["never read"])
+        result = invoke("account", "add", name, "--url", URL, prompter=prompter)
+        assert result.code == 2
+        assert "has no username to sign in with" in result.err
+        assert hint in result.err
+        assert prompter.asked == []
+
     def test_a_bad_password_is_not_stored(self, invoke, server, secrets):
         server.intercept = lambda request: httpx.Response(401)
         result = invoke(*ADD, "--password-stdin", stdin="wrong")

@@ -15,7 +15,7 @@ from rich.console import Console
 import jmap.discovery
 from jmap.auth import BasicAuth
 from jmap.cli.config import ResolvedAccount
-from jmap.cli.connect import _Tracer, find_account, http_client, open_client
+from jmap.cli.connect import _Tracer, find_account, http_client, open_client, session_url
 from jmap.cli.errors import NotFoundError
 from jmap.testing import FakeJMAPServer
 
@@ -134,3 +134,24 @@ class TestFindAccount:
     def test_ambiguous(self):
         with pytest.raises(NotFoundError, match="several JMAP accounts are named 'TEAM'"):
             find_account(self.session(a="Team", b="team"), "TEAM")
+
+
+class TestSessionUrl:
+    @pytest.mark.parametrize(
+        ("given", "used"),
+        [
+            ("https://mail.example.com", "https://mail.example.com/.well-known/jmap"),
+            ("https://mail.example.com/", "https://mail.example.com/.well-known/jmap"),
+            ("http://h:8080", "http://h:8080/.well-known/jmap"),
+            ("https://h/.well-known/jmap", "https://h/.well-known/jmap"),
+            ("https://h/jmap/session", "https://h/jmap/session"),
+        ],
+    )
+    def test_a_bare_host_gets_the_well_known_path(self, given, used):
+        assert session_url(given) == used
+
+    def test_a_bare_host_reaches_the_session(self, server):
+        account = replace(ACCOUNT, url="https://jmap.example.com")
+        http = httpx.Client(**server.client_kwargs())
+        client = open_client(account, auth=AUTH, http=http, prompter=ScriptedPrompter())
+        assert client.session.username == "alice@example.com"

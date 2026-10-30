@@ -19,8 +19,11 @@ $ jmap server capabilities
 ```
 
 `account add` connects once to check the credential, then stores the password in
-the OS keyring and the rest in the configuration file. Without `--url`, give
-`--address` and the server is found from the address (RFC 8620 §2.2).
+the OS keyring and the rest in the configuration file. A `--url` with no path,
+such as `https://mail.example.com`, means its `/.well-known/jmap`. Without
+`--url`, give `--address` and the server is found from the address (RFC 8620
+§2.2). The account's name is only a label: sign in with `--username`, or with
+`--address`, which is the username when `--username` is not given.
 
 ## Two kinds of account
 

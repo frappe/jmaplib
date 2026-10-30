@@ -77,6 +77,9 @@ def add(
         insecure=context.flags.insecure,
     )
     resolved = from_config(name, stored, config.defaults)
+    if resolved.auth == "password" and not resolved.username:
+        # Before asking for the password, not after.
+        raise UsageError(f"account {name!r} has no username to sign in with", hint=_hint(name))
     secret = _new_secret(context, resolved, password_stdin or token_stdin, ask_environment=True)
     if not no_verify:
         _connected(context, context.connect(resolved, make_auth(resolved, secret)))
@@ -202,6 +205,12 @@ def login(
         context.connect(resolved, make_auth(resolved, secret))
     _store(context, resolved, secret)
     context.renderer.note(f"stored the {resolved.auth} for {resolved.name!r}")
+
+
+def _hint(name: str) -> str:
+    if "@" in name:
+        return f"pass --username {name} (the name only labels the account)"
+    return "pass --username, or --address to use it as the username"
 
 
 def _auth_kind(given: str | None, *, password_stdin: bool, token_stdin: bool) -> AuthKind:
