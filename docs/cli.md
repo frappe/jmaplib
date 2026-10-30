@@ -128,6 +128,126 @@ username. `--send-at` needs a server offering FUTURERELEASE, and is checked
 against its `maxDelayedSend`; `jmap submission cancel ID` stops a held message.
 `jmap send --eml FILE` sends a whole message file as it is.
 
+## Server tools
+
+```console
+$ jmap quota                                     # used, and the limit
+$ jmap sieve put filters.sieve --activate
+$ jmap blob upload report.pdf
+$ jmap changes Email --since 7a3f --fetch
+$ jmap watch --new-mail --match from:boss
+$ jmap api batch calls.json
+```
+
+### Blobs
+
+A blob is binary data with an id: an attachment, a message source, a Sieve
+script. `jmap blob upload FILE` prints the new blob's id, and `jmap blob
+download ID` writes its bytes to stdout. On a terminal, `download` needs
+`--save FILE`. The other three verbs are method calls:
+
+- `jmap blob info ID... [--digest sha-256]` shows the size and the digests the
+  server offers (RFC 9404).
+- `jmap blob lookup ID... [--type Email]` shows which objects refer to each
+  blob. Without `--type`, it asks about every type the server can search.
+- `jmap blob copy ID... --from-account ID` copies blobs from another JMAP
+  account into the selected one.
+
+### Sieve filters
+
+`jmap sieve put FILE` uploads the script, checks it with
+`SieveScript/validate`, and stores it under the file's name, or `--name`. A
+script of the same name is replaced. `--activate` makes it the active script
+in the same request. A script the server does not accept is not stored, and
+the command exits 2 with the server's explanation.
+
+`jmap sieve validate FILE` only checks. `get` prints a script, and `activate`,
+`deactivate` and `delete` change which script runs. To delete the active
+script, `delete` deactivates it first, in the same request.
+
+### Quotas
+
+`jmap quota` lists each quota with what is used and the hard limit. `jmap quota
+show QUOTA` adds the warning and soft limits. The server returns only quotas
+for capabilities named in the request, so the request names every capability
+this build shares with the server.
+
+### Changes
+
+Every JMAP data type has a state string. `jmap changes TYPE` prints the current
+one. Keep it, and later `jmap changes TYPE --since STATE` prints the ids
+created, updated and destroyed since then, and the new state on stderr. The
+command follows every page the server sends. `--max N` sets the page size, and
+`--fetch` also gets the created and updated objects. With `--json`, the output
+is one `Foo/changes` response that holds every page, or with `--fetch` the
+objects. A state the server can no longer compare against exits 10: get the
+current state and start again.
+
+### Watching for changes
+
+`jmap watch` holds the server's event source open and prints a line for each
+type that changes, until you press Ctrl-C:
+
+```console
+$ jmap watch --types Email,Mailbox
+u7	Email	s1240
+u7	Mailbox	s88
+```
+
+`--ping 30` asks the server for a keep-alive this often, so a dead connection
+is found. A connection that drops is opened again, and resumes where it
+stopped. Because the output is a stream, `--json` prints one object per line,
+as `--jsonl` does.
+
+`--new-mail` prints one line for each message that arrives, with its id, date,
+sender and subject. `--match QUERY` keeps only the messages a search finds, in
+the language of `jmap search`.
+
+`--exec CMD` runs a command for each change, with the event as JSON on its
+stdin. Its environment also has `JMAP_ACCOUNT` (the named account, so a `jmap`
+command in it uses the same account), `JMAP_TYPES` (the types that changed,
+comma-separated) and `JMAP_STATES` (the new states, as JSON). The command is
+not run through a shell. For pipes, use `--exec "sh -c '...'"`.
+
+### Push subscriptions
+
+A push subscription makes the server POST each change to a URL you own,
+instead of keeping a connection open:
+
+1. Run `jmap push add --url https://push.example.com/hook --types Email`.
+2. Read the verification code that the server POSTs to the URL.
+3. Run `jmap push verify ID CODE`. The server sends nothing else before this.
+
+`--expires +7d` (or `12h`, or a UTC date) asks for an end date, and `jmap push
+renew ID` moves it. The server can choose an earlier date. `jmap push list` and
+`remove` show and delete subscriptions. A subscription belongs to the
+credentials that made it, so `list` shows only those.
+
+`--encrypt` makes a key pair and gives the server the public half, so only you
+can read what the server pushes (RFC 8291). The private half is kept in the
+keyring under the subscription's id. This needs the `jmaplib[push]` extra.
+`jmap push decode FILE --subscription ID` decrypts a saved POST body and prints
+it as JSON. Without `--subscription`, it reads an unencrypted body. `jmap push
+keys` prints the server's VAPID key (RFC 9749), for a browser push service.
+
+### Many calls in one request
+
+`jmap api batch FILE` sends the calls in a JSON file, or `-` for stdin, as one
+request. Each call is `[method, arguments, callId]`, and the call id can be
+left out. An argument whose name starts with `#` takes its value from an
+earlier call's result, named by its call id in the file:
+
+```json
+[
+  ["Email/query", {"filter": {"from": "bob"}, "limit": 5}, "q"],
+  ["Email/get", {"#ids": {"resultOf": "q", "path": "/ids"}, "properties": ["subject"]}, "g"]
+]
+```
+
+The output is the array of responses, `[method, arguments, callId]` each. A
+call that fails appears as `["error", {...}, callId]`, and the command then
+exits 6.
+
 ## The shell
 
 `jmap shell` keeps one connection open and runs commands typed at its prompt,
@@ -377,6 +497,13 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap mail import FILE [--to MAILBOX]` | Add a message file to a mailbox without sending it. |
 | `jmap mail export MSG... [--dir DIR] [--save FILE] [--mbox FILE]` | Save messages as `.eml` files or one mbox. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
+| `jmap api batch FILE` | Several calls in one request, with back-references. |
+| `jmap blob upload/download/info/lookup/copy` | Blobs: upload a file, save one, sizes and digests, what refers to it, copy between accounts. |
+| `jmap sieve list/get/put/validate/activate/deactivate/delete` | Server-side mail filters. |
+| `jmap quota list/show` (`jmap quota`) | What is used against each limit. |
+| `jmap changes TYPE [--since STATE] [--fetch]` | The current state, or what changed since one. |
+| `jmap watch [--new-mail] [--exec CMD]` | Follow changes as the server announces them. |
+| `jmap push list/add/verify/renew/remove/keys/decode` | Push subscriptions to a URL of yours. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
 | `jmap --install-completion` | Tab completion for your shell (bash, zsh, fish, PowerShell). |
