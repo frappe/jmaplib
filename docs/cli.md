@@ -590,6 +590,8 @@ line. With `--json`, the last stderr line is also a JSON object:
 
 ## Commands
 
+The [command reference](cli-reference.md) gives every argument and option.
+
 | Command | |
 |---|---|
 | `jmap account add NAME` | Add a named account and store its secret. |
