@@ -396,6 +396,39 @@ names say.
 flattening back-reference `/list/*/emailIds` (RFC 8620 §3.7). A server that
 answers `invalidResultReference` needs two requests, `Thread/get` first.
 
+### Writing with `jmap.mail`
+
+`jmap.mail.compose` holds a `Draft`, its text form for an editor
+(`render_draft`, `parse_draft`), and `email_create`, which turns it into a
+checked `Email/set` create object. `jmap.mail.reply` builds replies and
+forwards, threaded by In-Reply-To and References, and picks the identity to
+send from. `queue_send` creates and submits in one request:
+
+```python
+from jmap.mail.addresses import parse_addresses
+from jmap.mail.compose import Draft, email_create, sent_patch
+from jmap.mail.ops import queue_send
+
+draft = Draft(
+    from_=parse_addresses("Alice <alice@example.com>"),
+    to=parse_addresses("bob@example.com"),
+    subject="Lunch?",
+    body="One o'clock?",
+)
+with client.batch() as batch:
+    sent = queue_send(
+        batch,
+        email_create(draft, mailbox_id=drafts_id),
+        identity_id=identity.id,
+        on_success=sent_patch(drafts_id=drafts_id, sent_id=sent_id),
+    )
+```
+
+Attachments are uploaded first and passed to `email_create` as `uploaded`,
+keyed by `AttachmentSpec.key`. `envelope(sender, draft, now=...)` adds the
+`HOLDFOR`/`HOLDUNTIL` parameter for a draft with `send_at`, and
+`queue_import_and_send` sends an uploaded `message/rfc822` blob as it is.
+
 ## Threads
 
 A thread is derived, not stored - so it has `/get` and `/changes` and nothing

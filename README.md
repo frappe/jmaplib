@@ -614,6 +614,8 @@ $ jmap ls
 $ jmap read 2
 $ jmap search 'from:bob is:unread after:7d'
 $ jmap archive 1-2
+$ jmap reply 2 --all
+$ jmap send --to bob@example.com --subject Lunch --body "One o'clock?"
 $ jmap ls --json | jq -r '.[].subject'
 ```
 
@@ -621,7 +623,7 @@ Passwords and OAuth tokens go to the OS keyring, never onto the command line.
 Listings are numbered, and `read 2` means row 2 of the last one. `jmap shell`
 keeps one connection open, with `cd`, history and Tab completion. `--json`
 prints the server's own objects, and the exit code says what kind of failure
-happened. Sending mail comes next. See [Command line](docs/cli.md).
+happened. See [Command line](docs/cli.md).
 
 ## Testing your code
 

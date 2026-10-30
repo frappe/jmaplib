@@ -23,6 +23,18 @@ for exactly which revision of each spec this build implements.
   and `keyword`, and `jmap mailbox create/rename/move/delete/subscribe/
   unsubscribe/empty`. A move is a patch, so mail filed in several mailboxes stays
   where else it is.
+- **Writing mail from the command line.** `jmap compose` (in your editor),
+  `jmap send`, `jmap reply [--all]` and `jmap forward`, each one request that
+  creates the message in Drafts and submits it; it moves to Sent only if the
+  send succeeds, and a reply's original is marked `$answered` in the same
+  request. Attachments, Markdown and HTML bodies, `--send-at` (FUTURERELEASE),
+  and `send --eml` for a whole message file. Also `jmap draft`, `jmap
+  attachment`, `jmap identity`, `jmap submission`, `jmap vacation`, and `jmap
+  mail import` and `export` (to `.eml` files or an mbox).
+- **`jmap.mail.compose`, `jmap.mail.reply` and `jmap.mail.addresses`**: drafts
+  and their text form, the checked `Email/set` create object, the envelope for a
+  held send, replies and forwards, choosing an identity, and address parsing;
+  and `queue_send`/`queue_import_and_send` in `jmap.mail.ops`.
 - **`jmap shell`**: one connection for many commands, with `cd` into a mailbox
   (`.` names it), `use` to switch account, history, and Tab completion of
   commands, options and mailboxes. It reads plain lines from a pipe, so a

@@ -5,9 +5,8 @@ library: every command is a batch you could write yourself, and `-v` shows each
 request it sends. `python -m jmap` runs the same command.
 
 This release has accounts (passwords, tokens or OAuth), mailboxes, reading,
-searching and filing mail, an interactive shell, the server's session and
-capabilities, and raw method calls. Sending mail comes next, then contacts,
-calendars and files.
+searching, filing and writing mail, an interactive shell, the server's session
+and capabilities, and raw method calls. Contacts, calendars and files come next.
 
 ## First run
 
@@ -82,6 +81,52 @@ Filing commands patch a message, never rewrite it. `jmap move 3 Archive` takes
 the message out of the mailbox it was listed from and puts it in Archive; a
 message also filed elsewhere stays there. When the source is unknown (you named
 it by id), give `--from MAILBOX`, or the message ends up in the target alone.
+
+## Writing mail
+
+```console
+$ jmap compose                                   # write it in your editor
+$ jmap send --to bob@example.com --subject Lunch --body "One o'clock?"
+$ jmap reply 2 --all
+$ jmap forward 2 --to carol@example.com --body FYI
+$ jmap send --to team@example.com --subject Notes --body-file notes.md --markdown
+$ jmap send --to bob@example.com --body "Reminder" --send-at +2h
+```
+
+`compose`, `reply` and `forward` open your editor on a draft like this one, on a
+terminal and unless the body is given. A file you save unchanged is not sent.
+
+```
+# Lines starting with # are ignored. Leave a blank line before the body.
+# You can send as: Alice <alice@example.com>, Alice (work) <alice@work.example>
+From: Alice <alice@example.com>
+To: bob@example.com
+Cc:
+Bcc:
+Subject: Lunch?
+Attach: ~/menu.pdf
+
+One o'clock?
+```
+
+Other headers you may add: `Reply-To`, `In-Reply-To`, `References`, `Send-At`
+(`+30m`, `+2h`, `+1d`, or a date and time), `Content-Type` (`text/markdown` or
+`text/html`), `Keywords`, and any `X-` header. `Attach: blob:ID` attaches a blob
+the server already holds. A `--body-file` that starts with headers is read the
+same way.
+
+Each send is one request: the message is created in Drafts and submitted, and
+the server moves it to Sent and clears `$draft` only if the submission
+succeeds. A reply's original is marked `$answered` (a forward's `$forwarded`)
+in the same request. If the server refuses to send, the message stays in Drafts
+and the command exits 8, naming the `jmap draft send` that will retry it. For a
+server that files sent mail itself, set `send_move_to_sent = false`.
+
+`--from` picks the identity by address; otherwise a reply goes from the address
+the original was sent to, and anything else from the identity matching your
+username. `--send-at` needs a server offering FUTURERELEASE, and is checked
+against its `maxDelayedSend`; `jmap submission cancel ID` stops a held message.
+`jmap send --eml FILE` sends a whole message file as it is.
 
 ## The shell
 
@@ -319,6 +364,18 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap server conformance [--markdown]` | Every capability this build models, against the server. |
 | `jmap server echo [JSON]` | `Core/echo`. |
 | `jmap server refresh` | Fetch the session again. |
+| `jmap compose` | Write a message in your editor and send it; `--draft` saves it. |
+| `jmap send --to ADDR ...` | Send without an editor; `--eml FILE` sends a message file. |
+| `jmap reply MSG [--all] [--no-quote]` | Reply, quoting the original; marks it answered. |
+| `jmap forward MSG --to ADDR [--attach-original]` | Forward with its attachments; marks it forwarded. |
+| `jmap draft list/new/edit/send/delete` | Drafts: list them, write one, edit and replace, send, delete. |
+| `jmap attachment list MSG` | A message's attachments, numbered. |
+| `jmap attachment download MSG [N/NAME...] [--all] [--dir DIR] [--save FILE]` | Save them; `--save -` writes to stdout. |
+| `jmap identity list/show/create/update/delete` | The addresses you send from, and their signatures. |
+| `jmap submission list [--pending] / show / cancel ID` | Sent and held messages; cancel one that has not gone. |
+| `jmap vacation show/set/enable/disable` | The automatic reply while you are away. |
+| `jmap mail import FILE [--to MAILBOX]` | Add a message file to a mailbox without sending it. |
+| `jmap mail export MSG... [--dir DIR] [--save FILE] [--mbox FILE]` | Save messages as `.eml` files or one mbox. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
