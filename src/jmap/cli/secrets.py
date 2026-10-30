@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 SERVICE: Final = "jmaplib"
 
-SecretKind = Literal["password", "token", "oauth"]
+SecretKind = Literal["password", "token", "oauth", "push"]
 
-#: ``oauth`` holds the token, refresh token and expiry as JSON.
+#: The kinds an account signs in with. ``oauth`` holds the token, refresh token
+#: and expiry as JSON. ``push``, not one of them, holds a push subscription's keys.
 KINDS: Final[tuple[SecretKind, ...]] = ("password", "token", "oauth")
 
 

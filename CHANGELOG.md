@@ -38,6 +38,14 @@ for exactly which revision of each spec this build implements.
   `unsubscribe`, `list` and `notifications` do the rest. Each change patches
   one principal's entry, so other principals keep their access. `jmap mdn send`
   sends a read receipt once per message, and `jmap mdn parse` reads one.
+- **Server tools from the command line.** `jmap blob` uploads, downloads, looks
+  up and copies blobs. `jmap sieve` stores, checks and activates Sieve filters.
+  `jmap quota` shows what is used against each limit. `jmap changes TYPE
+  --since STATE` follows every page of `Foo/changes`. `jmap watch` follows the
+  event source, and can print new mail (`--new-mail --match QUERY`) or run a
+  command for each change (`--exec`). `jmap push` manages push subscriptions,
+  with encrypted payloads if `jmaplib[push]` is installed. `jmap api batch`
+  sends a file of calls as one request, with back-references between them.
 - **`jmap.mail.compose`, `jmap.mail.reply` and `jmap.mail.addresses`**: drafts
   and their text form, the checked `Email/set` create object, the envelope for a
   held send, replies and forwards, choosing an identity, and address parsing;

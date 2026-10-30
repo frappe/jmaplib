@@ -68,10 +68,23 @@ def register(app: typer.Typer) -> None:
     app.add_typer(principal.app, name="principal", help="People, groups and resources.")
     app.add_typer(share.app, name="share", help="Who else may use your data.")
     app.add_typer(mdn.app, name="mdn", help="Read receipts.")
+    _server_tools(app)
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
     _aliases(app, mail.app)
+
+
+def _server_tools(app: typer.Typer) -> None:
+    """Blobs, filters, quotas, changes and push."""
+    from jmap.cli.commands import blob, changes, push, quota, sieve, watch
+
+    app.add_typer(blob.app, name="blob", help="Upload, download and look up blobs.")
+    app.add_typer(sieve.app, name="sieve", help="Server-side mail filters (Sieve).")
+    app.add_typer(quota.app, name="quota", help="How much of each limit is used.")
+    app.add_typer(push.app, name="push", help="Push subscriptions to a URL of yours.")
+    app.command("changes", rich_help_panel="Server")(changes.changes)
+    app.command("watch", rich_help_panel="Server")(watch.watch)
 
 
 #: The daily verbs, also at the top level: ``jmap ls`` is ``jmap mail list``.
@@ -123,6 +136,11 @@ def json_argument(text: str | None, context: CLIContext) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise UsageError("the arguments must be a JSON object")
     return cast("dict[str, Any]", value)
+
+
+def comma_list(values: list[str] | None) -> list[str]:
+    """A repeatable option's values, each of which may also be a comma-separated list."""
+    return [part.strip() for value in values or [] for part in value.split(",") if part.strip()]
 
 
 def report_set(context: CLIContext, result: Any, done: str) -> None:
