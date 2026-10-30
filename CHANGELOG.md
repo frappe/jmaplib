@@ -35,6 +35,12 @@ for exactly which revision of each spec this build implements.
   and their text form, the checked `Email/set` create object, the envelope for a
   held send, replies and forwards, choosing an identity, and address parsing;
   and `queue_send`/`queue_import_and_send` in `jmap.mail.ops`.
+- **Calendars and files from the command line** (both experimental):
+  `jmap calendar`, `jmap event list/show/create/import/update/delete/
+  notifications`, `jmap freebusy`, and `jmap file ls/tree/upload/download/
+  mkdir/rm/mv`. `event list` splits a window wider than the server expands into
+  several queries in one request. A change to one occurrence of a repeating
+  event needs `--this-occurrence`.
 - **`jmap shell`**: one connection for many commands, with `cd` into a mailbox
   (`.` names it), `use` to switch account, history, and Tab completion of
   commands, options and mailboxes. It reads plain lines from a pipe, so a

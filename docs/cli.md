@@ -128,6 +128,58 @@ username. `--send-at` needs a server offering FUTURERELEASE, and is checked
 against its `maxDelayedSend`; `jmap submission cancel ID` stops a held message.
 `jmap send --eml FILE` sends a whole message file as it is.
 
+## Calendars and files
+
+Calendars (draft-ietf-jmap-calendars) and files (draft-ietf-jmap-filenode) are
+experimental capabilities. A `calendar`, `event`, `freebusy` or `file` command
+turns them on by itself, so you do not need `--experimental`.
+
+```console
+$ jmap calendar list
+$ jmap event list                                # today and the next 7 days
+$ jmap event list --from 2026-12-01 --to +1w --calendar Work
+$ jmap event create Lunch --start 2026-11-05T12:30 --duration 45m --alert 15m
+$ jmap event create Review --start tomorrow --all-day --rrule "FREQ=WEEKLY;COUNT=4"
+$ jmap event create Sync --start 2026-11-05T09:00 --attendee bob@example.com --send-invites
+$ jmap event import party.ics
+$ jmap freebusy bob@example.com --from today --to +3d
+```
+
+`event list` shows each occurrence of a repeating event on its own row. Give
+`--no-expand` for one row per event. `--from` takes `today`, `tomorrow`, `+2d`,
+or a date and time. `+90m`, `+2h`, `+3d` and `+1w` in `--to` count from `--from`.
+Times are read and shown in the zone that `--tz` names. Without `--tz`, the zone
+is `$TZ`, then the zone of this computer.
+
+A server expands repeating events only over a limited window
+(`maxExpandedQueryDuration`). A longer window is sent as several queries in one
+request, and an event in two of them is listed once.
+
+The id of one occurrence is not the id of its event. `event update` and
+`event delete` refuse an occurrence id, because a change to it can change the
+whole series. Give `--this-occurrence` to change only that occurrence: the change
+goes into the event's `recurrenceOverrides`. Give the event's own id to change
+every occurrence.
+
+`event create` sends no invitations unless you give `--send-invites`. With
+`--attendee`, you are the organizer, as your default scheduling identity.
+
+```console
+$ jmap file ls /Projects
+$ jmap file tree
+$ jmap file upload report.pdf /Projects/
+$ jmap file download /Projects/report.pdf --dir ~/Downloads
+$ jmap file mkdir -p /Projects/2026/Q4
+$ jmap file mv /Projects/report.pdf /Archive
+$ jmap file rm -r /Projects/2025
+```
+
+A path such as `/Projects/report.pdf` is found one name at a time, so each name
+costs one request. `/` is the top level. `upload` to a directory, or to a path
+that ends in `/`, keeps the file's name. Any other path gives the file a new
+name. A name that is already taken fails unless you give `--replace`. `rm`
+deletes a directory only if it is empty, unless you give `-r`.
+
 ## The shell
 
 `jmap shell` keeps one connection open and runs commands typed at its prompt,
@@ -376,6 +428,16 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap vacation show/set/enable/disable` | The automatic reply while you are away. |
 | `jmap mail import FILE [--to MAILBOX]` | Add a message file to a mailbox without sending it. |
 | `jmap mail export MSG... [--dir DIR] [--save FILE] [--mbox FILE]` | Save messages as `.eml` files or one mbox. |
+| `jmap calendar list/create/rename/delete` | Calendars; `delete --with-events` also deletes their events. |
+| `jmap event list [--from --to --calendar --tz --no-expand]` | Events in a window, each occurrence on its own row. |
+| `jmap event show/update/delete EVENT [--this-occurrence]` | One event; change or delete it, or one occurrence. |
+| `jmap event create TITLE --start WHEN [--rrule --alert --attendee --send-invites]` | A new event, one hour long unless you say otherwise. |
+| `jmap event import FILE.ics [--calendar CAL]` | Add the events in an iCalendar file. |
+| `jmap event notifications [--clear]` | What others changed in events you can see. |
+| `jmap freebusy WHO [--from --to --details]` | When a person or resource is busy. |
+| `jmap file ls/tree [PATH]` | Files and directories on the server. |
+| `jmap file upload FILE [PATH] / download PATH` | Copy a file to or from the server. |
+| `jmap file mkdir [-p] / rm [-r] / mv` | Create, delete, move and rename. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
