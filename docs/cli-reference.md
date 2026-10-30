@@ -2085,3 +2085,4 @@ Print changes as the server announces them, until Ctrl-C.
 | `--exec` | `TEXT` | Run this for each change, with the event on stdin. |
 | `--new-mail` |  | Print one line for each new message. |
 | `--match` | `TEXT` | With --new-mail: only messages this search finds. |
+| `--poll` | `N` | Ask for changes this often, in seconds, instead of push. |

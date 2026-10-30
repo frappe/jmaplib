@@ -80,6 +80,8 @@ for exactly which revision of each spec this build implements.
   `jmap watch` follows the event source. It can print new mail
   (`--new-mail --match QUERY`), which leaves out drafts and read messages such
   as your own sent copies, or run a shell command for each change (`--exec`).
+  Where a proxy holds the event source back, `watch` says so, and
+  `--poll SECONDS` asks for changes over the plain API instead.
   `jmap push` manages push subscriptions, with encrypted payloads if
   `jmaplib[push]` is installed.
 - **Raw method calls.** `jmap api call` sends one method with raw arguments.

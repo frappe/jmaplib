@@ -22,6 +22,7 @@ import typer
 
 from jmap.cli import format as fmt
 from jmap.cli.commands import cli, comma_list
+from jmap.cli.commands.watch_sources import SilenceNote, poll
 from jmap.cli.errors import UsageError
 from jmap.cli.output import wire_of
 from jmap.core.errors import MethodError
@@ -31,7 +32,7 @@ from jmap.push import EventSourceClient, Ping, UnknownPushTypeError
 from jmap.sync.changes import is_resync_error
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Iterator, Mapping
 
     from jmap.cli.context import CLIContext
     from jmap.client import JMAPClient
@@ -65,6 +66,12 @@ def watch(
     match: Annotated[
         str | None, typer.Option(help="With --new-mail: only messages this search finds.")
     ] = None,
+    every: Annotated[
+        int | None,
+        typer.Option(
+            "--poll", min=1, help="Ask for changes this often, in seconds, instead of push."
+        ),
+    ] = None,
 ) -> None:
     """Print changes as the server announces them, until Ctrl-C."""
     context = cli(ctx)
@@ -74,14 +81,26 @@ def watch(
     tracker = NewMail.start(context, match) if new_mail else None
     if tracker is not None and wanted is not None and "Email" not in wanted:
         wanted.append("Email")
+    watcher = Watcher(context, command or None, tracker)
+    events = (
+        poll(context.client(), wanted, every)
+        if every is not None
+        else _pushed(context, wanted, ping)
+    )
+    for event in events:
+        watcher.handle(event)
+
+
+def _pushed(context: CLIContext, wanted: list[str] | None, ping: int) -> Iterator[Event]:
+    """The event source's events, with a note if it sends nothing at all."""
     try:
         source = EventSourceClient(context.client(), types=wanted, ping=ping)
     except UnknownPushTypeError as error:
         raise UsageError(str(error)) from error
-    watcher = Watcher(context, command or None, tracker)
-    with closing(source.listen()) as events:
+    with closing(source.listen()) as events, SilenceNote(context, ping) as silence:
         for event in events:
-            watcher.handle(event)
+            silence.heard()
+            yield event
 
 
 class Watcher:

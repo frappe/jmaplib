@@ -367,6 +367,16 @@ sender and subject. A message that is a draft, or is already read (such as the
 copy of a message you sent), is not new mail. `--match QUERY` keeps only the
 messages a search finds, in the language of `jmap search`.
 
+`watch` listens on the server's event source. If a proxy in front of the server
+holds that stream back, nothing arrives, not even the keep-alive ping; after the
+ping deadline `watch` says so once. `--poll SECONDS` then asks for each type's
+state that often instead, over the plain API, and everything else works the
+same:
+
+```console
+$ jmap watch --poll 30 --new-mail
+```
+
 `--exec CMD` runs a command for each change, with the event as JSON on its
 stdin. Its environment also has `JMAP_ACCOUNT` (the named account, so a `jmap`
 command in it uses the same account), `JMAP_TYPES` (the types that changed,
@@ -699,7 +709,7 @@ The [command reference](cli-reference.md) gives every argument and option.
 | `jmap sieve list/get/put/validate/activate/deactivate/delete` | Server-side mail filters. |
 | `jmap quota list/show` (`jmap quota`) | What is used against each limit. |
 | `jmap changes TYPE [--since STATE] [--fetch]` | The current state, or what changed since one. |
-| `jmap watch [--new-mail] [--exec CMD]` | Follow changes as the server announces them. |
+| `jmap watch [--new-mail] [--exec CMD] [--poll SECONDS]` | Follow changes as the server announces them. |
 | `jmap push list/add/verify/renew/remove/keys/decode` | Push subscriptions to a URL of yours. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
