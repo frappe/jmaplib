@@ -1,9 +1,9 @@
-"""The ``jmap`` command against a real server.
+"""The ``jmap`` command against a real server: accounts, mail and Sieve.
 
 ``tests/cli`` drives the command tree against the fake server. These tests drive
-the same tree, in process, against the server ``JMAP_TEST_URL`` names: each
-person gets an empty configuration directory, adds the account with
-``--password-stdin --no-keyring``, and runs commands with ``--json``.
+the same tree, in process, against the server ``JMAP_TEST_URL`` names, as the
+people in :mod:`tests.integration.cli_people`. Contacts, calendars, files and
+sharing are in ``test_live_cli_groupware.py``.
 
 Skips are per method, as in the other live tests: a server that lacks a method
 skips the test that needs it. The library client is what asks, because the
@@ -12,102 +12,34 @@ command's own refusal (exit 7) would read as a failure.
 
 from __future__ import annotations
 
-import io
-import json
-import os
 import subprocess
 import sys
 import time
 import uuid
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from jmap.__about__ import __version__
-from jmap.cli.app import run
-from jmap.cli.context import CLIContext
-from jmap.cli.secrets import MemoryStore
-from tests.integration.conftest import CA_BUNDLE, INSECURE, JMAP_URL, connect
+from jmap.mail.ops import queue_thread
+from tests.integration.cli_people import (
+    ALICE,
+    ALICE_PASSWORD,
+    BOB,
+    BOB_PASSWORD,
+    Person,
+    requires_method,
+    requires_second_account,
+    requires_server,
+)
+from tests.integration.conftest import connect
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
-    from pathlib import Path
+    from collections.abc import Iterator
 
     from jmap.client import JMAPClient
 
 pytestmark = pytest.mark.integration
-
-ALICE = os.environ.get("JMAP_TEST_USER", "")
-ALICE_PASSWORD = os.environ.get("JMAP_TEST_PASS", "")
-BOB = os.environ.get("JMAP_TEST_USER2", "")
-BOB_PASSWORD = os.environ.get("JMAP_TEST_PASS2", "")
-
-requires_server = pytest.mark.skipif(
-    not (JMAP_URL and ALICE and ALICE_PASSWORD),
-    reason="set JMAP_TEST_URL, JMAP_TEST_USER and JMAP_TEST_PASS to run",
-)
-requires_second_account = pytest.mark.skipif(
-    not (BOB and BOB_PASSWORD),
-    reason="set JMAP_TEST_USER2 and JMAP_TEST_PASS2 to run delivery tests",
-)
-
-
-@dataclass
-class Result:
-    code: int
-    out: str
-    err: str
-
-    def json(self) -> Any:
-        return json.loads(self.out)
-
-
-class Person:
-    """One person's ``jmap``: an empty home directory, and no keyring.
-
-    ``account add`` reads the password from stdin. With ``--no-keyring`` it is
-    not stored, so later commands get it from ``$JMAP_PASSWORD``, as in CI.
-    """
-
-    def __init__(self, home: Path, username: str, password: str) -> None:
-        self.username = username
-        self.password = password
-        self.environ = {
-            "HOME": str(home),
-            "XDG_CONFIG_HOME": str(home / "config"),
-            "XDG_STATE_HOME": str(home / "state"),
-            "XDG_CACHE_HOME": str(home / "cache"),
-        }
-
-    def __call__(self, *args: str) -> Result:
-        environ = {**self.environ, "JMAP_PASSWORD": self.password}
-        return self._run([*args, "--no-keyring"], environ, stdin="")
-
-    def ok(self, *args: str) -> Result:
-        """Run a command that must succeed."""
-        return _succeeded(args, self(*args))
-
-    def add_account(self) -> Result:
-        args = ["account", "add", "live", "--url", JMAP_URL, "--username", self.username]
-        args += ["--password-stdin", "--no-keyring"]
-        if CA_BUNDLE:
-            args += ["--ca-bundle", CA_BUNDLE]
-        if INSECURE:
-            args.append("--insecure")
-        return _succeeded(args, self._run(args, self.environ, stdin=f"{self.password}\n"))
-
-    def _run(self, args: list[str], environ: dict[str, str], stdin: str) -> Result:
-        context = CLIContext(
-            environ=environ,
-            stdin=io.StringIO(stdin),
-            stdout=io.StringIO(),
-            stderr=io.StringIO(),
-            secrets=MemoryStore(),
-            width=200,
-        )
-        code = run(args, context=context)
-        return Result(code, _text(context.out.file), _text(context.err.file))
 
 
 @pytest.fixture(scope="module")
@@ -125,16 +57,21 @@ def bob(tmp_path_factory: pytest.TempPathFactory) -> Person:
 
 
 @pytest.fixture(scope="module")
+def delivered(alice: Person, bob: Person, server: JMAPClient) -> dict[str, Any]:
+    """A message alice sent bob, as bob's ``mail list`` shows it."""
+    requires_method(server, "Identity/get", "Email/set", "EmailSubmission/set")
+    subject = f"jmaplib cli test {uuid.uuid4().hex[:8]}"
+    alice.ok("send", "--to", BOB, "--subject", subject, "--body", "sent by jmap send")
+    found = _wait_for(bob, subject)
+    assert found, f"{subject!r} never reached bob's inbox"
+    return found
+
+
+@pytest.fixture(scope="module")
 def server() -> Iterator[JMAPClient]:
     """A library client for alice, to ask what the server implements."""
     with connect(ALICE, ALICE_PASSWORD) as client:
         yield client
-
-
-def requires_method(client: JMAPClient, *methods: str) -> None:
-    for method in methods:
-        if not client.capabilities.supports(method):
-            pytest.skip(f"server does not implement {method}")
 
 
 class TestTheModule:
@@ -185,15 +122,6 @@ class TestMail:
 class TestDelivery:
     """Alice sends with ``jmap send``; bob finds it with ``jmap mail list``."""
 
-    @pytest.fixture(scope="class")
-    def delivered(self, alice: Person, bob: Person, server: JMAPClient) -> dict[str, Any]:
-        requires_method(server, "Identity/get", "Email/set", "EmailSubmission/set")
-        subject = f"jmaplib cli test {uuid.uuid4().hex[:8]}"
-        alice.ok("send", "--to", BOB, "--subject", subject, "--body", "sent by jmap send")
-        found = _wait_for(bob, subject)
-        assert found, f"{subject!r} never reached bob's inbox"
-        return found
-
     def test_bob_lists_what_alice_sent(self, delivered):
         assert delivered["subject"].startswith("jmaplib cli test")
 
@@ -201,6 +129,23 @@ class TestDelivery:
         requires_method(server, "Thread/get")
         rows = bob.ok("mail", "thread", delivered["id"], "--json").json()
         assert delivered["id"] in {row["id"] for row in rows}
+
+    def test_the_sent_copy_is_read_and_filed_in_sent(self, alice, delivered):
+        """``onSuccessUpdateEmail`` moved it out of Drafts and cleared ``$draft``."""
+        subject = delivered["subject"]
+        sent = alice.ok("mail", "list", "--in", "sent", "--subject", subject, "--json").json()
+        assert [item["keywords"] for item in sent] == [{"$seen": True}]
+        drafts = alice.ok("mail", "list", "--in", "drafts", "--subject", subject, "--json")
+        assert drafts.json() == []
+
+    def test_a_thread_takes_one_request(self, alice, server, delivered):
+        """The flattened ``/list/*/emailIds`` reference works, so no fallback is needed."""
+        requires_method(server, "Thread/get")
+        [sent] = alice.ok("mail", "list", "-A", "--subject", delivered["subject"], "--json").json()
+        with server.batch() as batch:
+            handles = queue_thread(batch, sent["id"])
+        assert handles.emails.error is None
+        assert sent["id"] in {email.id for email in handles.emails.result.items}
 
 
 @requires_server
@@ -227,13 +172,3 @@ def _wait_for(person: Person, subject: str, attempts: int = 20) -> dict[str, Any
             return found
         time.sleep(1)
     return None
-
-
-def _succeeded(args: Sequence[str], result: Result) -> Result:
-    assert result.code == 0, f"jmap {' '.join(args)} exited {result.code}: {result.err}"
-    return result
-
-
-def _text(stream: Any) -> str:
-    assert isinstance(stream, io.StringIO)
-    return stream.getvalue()
