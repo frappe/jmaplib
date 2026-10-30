@@ -4,9 +4,10 @@
 library: every command is a batch you could write yourself, and `-v` shows each
 request it sends. `python -m jmap` runs the same command.
 
-This release has accounts (passwords, tokens or OAuth), mailboxes, reading,
-searching, filing and writing mail, an interactive shell, the server's session
-and capabilities, and raw method calls. Contacts, calendars and files come next.
+It covers accounts (passwords, tokens or OAuth), mailboxes, reading, searching,
+filing and writing mail, contacts, calendars, files, sharing, read receipts,
+blobs, Sieve filters, quotas, changes and push, an interactive shell, the
+server's session and capabilities, and raw method calls.
 
 ## First run
 
@@ -175,6 +176,58 @@ RFC 9610. On those servers, `contact list`, `show`, `edit` and `delete` work,
 and the tables show the fields those servers are known to send. `--book` and
 `--sort` need RFC 9610 address books, and so do `create`, `import` and
 `addressbook`. These exit 7 on such a server.
+
+## Calendars and files
+
+Calendars (draft-ietf-jmap-calendars) and files (draft-ietf-jmap-filenode) are
+experimental capabilities. A `calendar`, `event`, `freebusy` or `file` command
+turns them on by itself, so you do not need `--experimental`.
+
+```console
+$ jmap calendar list
+$ jmap event list                                # today and the next 7 days
+$ jmap event list --from 2026-12-01 --to +1w --calendar Work
+$ jmap event create Lunch --start 2026-11-05T12:30 --duration 45m --alert 15m
+$ jmap event create Review --start tomorrow --all-day --rrule "FREQ=WEEKLY;COUNT=4"
+$ jmap event create Sync --start 2026-11-05T09:00 --attendee bob@example.com --send-invites
+$ jmap event import party.ics
+$ jmap freebusy bob@example.com --from today --to +3d
+```
+
+`event list` shows each occurrence of a repeating event on its own row. Give
+`--no-expand` for one row per event. `--from` takes `today`, `tomorrow`, `+2d`,
+or a date and time. `+90m`, `+2h`, `+3d` and `+1w` in `--to` count from `--from`.
+Times are read and shown in the zone that `--tz` names. Without `--tz`, the zone
+is `$TZ`, then the zone of this computer.
+
+A server expands repeating events only over a limited window
+(`maxExpandedQueryDuration`). A longer window is sent as several queries in one
+request, and an event in two of them is listed once.
+
+The id of one occurrence is not the id of its event. `event update` and
+`event delete` refuse an occurrence id, because a change to it can change the
+whole series. Give `--this-occurrence` to change only that occurrence: the change
+goes into the event's `recurrenceOverrides`. Give the event's own id to change
+every occurrence.
+
+`event create` sends no invitations unless you give `--send-invites`. With
+`--attendee`, you are the organizer, as your default scheduling identity.
+
+```console
+$ jmap file ls /Projects
+$ jmap file tree
+$ jmap file upload report.pdf /Projects/
+$ jmap file download /Projects/report.pdf --dir ~/Downloads
+$ jmap file mkdir -p /Projects/2026/Q4
+$ jmap file mv /Projects/report.pdf /Archive
+$ jmap file rm -r /Projects/2025
+```
+
+A path such as `/Projects/report.pdf` is found one name at a time, so each name
+costs one request. `/` is the top level. `upload` to a directory, or to a path
+that ends in `/`, keeps the file's name. Any other path gives the file a new
+name. A name that is already taken fails unless you give `--replace`. `rm`
+deletes a directory only if it is empty, unless you give `-r`.
 
 ## Sharing and read receipts
 
@@ -603,6 +656,16 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap share notifications [--clear]` | Changes others made to your access. |
 | `jmap mdn send MSG... [--type TYPE] [--auto]` | Send read receipts; marks them `$mdnsent`. |
 | `jmap mdn parse MSG.../blob:ID...` | What received read receipts say. |
+| `jmap calendar list/create/rename/delete` | Calendars; `delete --with-events` also deletes their events. |
+| `jmap event list [--from --to --calendar --tz --no-expand]` | Events in a window, each occurrence on its own row. |
+| `jmap event show/update/delete EVENT [--this-occurrence]` | One event; change or delete it, or one occurrence. |
+| `jmap event create TITLE --start WHEN [--rrule --alert --attendee --send-invites]` | A new event, one hour long unless you say otherwise. |
+| `jmap event import FILE.ics [--calendar CAL]` | Add the events in an iCalendar file. |
+| `jmap event notifications [--clear]` | What others changed in events you can see. |
+| `jmap freebusy WHO [--from --to --details]` | When a person or resource is busy. |
+| `jmap file ls/tree [PATH]` | Files and directories on the server. |
+| `jmap file upload FILE [PATH] / download PATH` | Copy a file to or from the server. |
+| `jmap file mkdir [-p] / rm [-r] / mv` | Create, delete, move and rename. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
 | `jmap api batch FILE` | Several calls in one request, with back-references. |
 | `jmap blob upload/download/info/lookup/copy` | Blobs: upload a file, save one, sizes and digests, what refers to it, copy between accounts. |

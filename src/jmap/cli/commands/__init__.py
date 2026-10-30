@@ -24,12 +24,17 @@ def register(app: typer.Typer) -> None:
         addressbook,
         api,
         attachment,
+        calendar,
         compose,
         config_cmd,
         contact,
         contact_edit,
         contact_import,
         draft,
+        event,
+        event_edit,
+        file,
+        freebusy,
         identity,
         mail,
         mail_files,
@@ -47,10 +52,9 @@ def register(app: typer.Typer) -> None:
         vacation,
     )
 
-    # Importing these is what defines their commands on mail.app and mailbox.app.
-    del mail_read, mail_triage, mail_files, mailbox_edit
-    del contact_edit, contact_import  # and these, on contact.app
-    del share_list  # defines `share list` and `share notifications` on share.app
+    # Importing these is what defines their commands on their noun's app.
+    del mail_read, mail_triage, mail_files, mailbox_edit, event_edit
+    del contact_edit, contact_import, share_list
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
     app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
@@ -69,6 +73,10 @@ def register(app: typer.Typer) -> None:
     app.add_typer(share.app, name="share", help="Who else may use your data.")
     app.add_typer(mdn.app, name="mdn", help="Read receipts.")
     _server_tools(app)
+    app.add_typer(calendar.app, name="calendar", help="Calendars (experimental).")
+    app.add_typer(event.app, name="event", help="Calendar events (experimental).")
+    app.command("freebusy")(freebusy.freebusy)
+    app.add_typer(file.app, name="file", help="Files stored on the server (experimental).")
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
