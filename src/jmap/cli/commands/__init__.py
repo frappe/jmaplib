@@ -21,10 +21,14 @@ def register(app: typer.Typer) -> None:
     """Mount every noun on ``app``."""
     from jmap.cli.commands import (
         account,
+        addressbook,
         api,
         attachment,
         compose,
         config_cmd,
+        contact,
+        contact_edit,
+        contact_import,
         draft,
         identity,
         mail,
@@ -41,6 +45,7 @@ def register(app: typer.Typer) -> None:
 
     # Importing these is what defines their commands on mail.app and mailbox.app.
     del mail_read, mail_triage, mail_files, mailbox_edit
+    del contact_edit, contact_import  # and these, on contact.app
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
     app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
@@ -53,6 +58,8 @@ def register(app: typer.Typer) -> None:
     app.add_typer(identity.app, name="identity", help="The addresses you send from.")
     app.add_typer(submission.app, name="submission", help="Sent and held messages.")
     app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
+    app.add_typer(addressbook.app, name="addressbook", help="The collections contacts live in.")
+    app.add_typer(contact.app, name="contact", help="List, show, create and edit contacts.")
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)

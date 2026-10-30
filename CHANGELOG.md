@@ -43,6 +43,13 @@ for exactly which revision of each spec this build implements.
   authorization server from the JMAP server, registers a client if there is
   none, and signs in through the browser or, with `--device`, a code on another
   device. The token is kept in the keyring and renews itself.
+- **Contacts from the command line.** `jmap addressbook list/create/rename/delete`
+  and `jmap contact list/show/create/edit/delete/import`, over RFC 9610.
+  `contact edit` opens the card's JSON in your editor and sends only the
+  properties you changed. `contact import` adds a vCard file through the
+  server's `ContactCard/parse`, and sends half as many cards at a time when the
+  server answers `requestTooLarge`. On Fastmail and older Cyrus servers, the
+  legacy `Contact` type can be listed, shown, edited and deleted.
 - **`jmap config path`, `edit` and `set`**, and SRV hosts you agree to trust are
   saved with the account, so you are asked once.
 - **`jmap.mail`**, for the same jobs from Python, with no I/O of its own: a

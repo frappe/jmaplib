@@ -57,6 +57,8 @@ SURFACE = {
     "identity": {"list", "show", "create", "update", "delete"},
     "submission": {"list", "show", "cancel"},
     "vacation": {"show", "set", "enable", "disable"},
+    "addressbook": {"list", "create", "rename", "delete"},
+    "contact": {"list", "show", "create", "edit", "delete", "import"},
 }
 
 
