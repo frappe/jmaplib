@@ -10,7 +10,14 @@ import pytest
 
 from jmap.auth import BasicAuth
 from jmap.client import JMAPClient
-from jmap.mail.ops import LIST_PROPERTIES, queue_list, queue_read, queue_thread
+from jmap.mail.ops import (
+    LIST_PROPERTIES,
+    queue_import_and_send,
+    queue_list,
+    queue_read,
+    queue_send,
+    queue_thread,
+)
 
 from .mailstore import MailStore, email, mail_server
 
@@ -127,3 +134,52 @@ def test_a_thread_in_one_request(mail):
     assert [e.subject for e in thread.emails.result.items] == ["Invoice", "Re: Invoice"]
     assert len(mail.calls()) == 3
     assert LIST_PROPERTIES[0] == "id"
+
+
+class TestSend:
+    def test_create_and_submit_in_one_request(self, mail):
+        client, store = mail.client, mail.store
+        create = {
+            "mailboxIds": {"drafts": True},
+            "to": [{"email": "bob@example.com"}],
+            "subject": "Hi",
+            "textBody": [{"partId": "t", "type": "text/plain"}],
+            "bodyValues": {"t": {"value": "Hello"}},
+        }
+        with client.batch() as batch:
+            sent = queue_send(
+                batch,
+                create,
+                identity_id="i1",
+                envelope={"mailFrom": {"email": "alice@example.com"}, "rcptTo": []},
+                on_success={"keywords/$draft": None},
+                update={"e1": {"keywords/$answered": True}},
+            )
+        email_id = sent.email.result.created["draft"].id
+        assert sent.submission.result.created["send"].id
+        assert store.emails["e1"]["keywords"]["$answered"] is True
+        calls = mail.calls()
+        assert calls[1][1]["create"]["send"]["emailId"] == "#draft"
+        assert calls[1][1]["onSuccessUpdateEmail"] == {"#send": {"keywords/$draft": None}}
+        assert store.submissions[next(iter(store.submissions))]["emailId"] == email_id
+
+    def test_without_extras(self, mail):
+        with mail.client.batch() as batch:
+            queue_send(batch, {"mailboxIds": {"drafts": True}}, identity_id="i1")
+        email_call, submission_call = mail.calls()
+        assert "update" not in email_call[1]
+        assert "envelope" not in submission_call[1]["create"]["send"]
+        assert "onSuccessUpdateEmail" not in submission_call[1]
+
+    def test_import_and_send(self, mail):
+        mail.server.blobs["raw"] = (b"Subject: Raw\r\n\r\nbody", "message/rfc822")
+        with mail.client.batch() as batch:
+            sent = queue_import_and_send(
+                batch,
+                "raw",
+                mailbox_id="drafts",
+                identity_id="i1",
+                on_success={"keywords/$seen": True},
+            )
+        assert sent.email.result["created"]["message"]["id"]
+        assert mail.calls()[1][1]["create"]["send"]["emailId"] == "#message"

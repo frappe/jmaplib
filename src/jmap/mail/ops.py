@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Final, Protocol
 
+from jmap.core.ids import CreationRef
 from jmap.core.patch import keyword_patch
 from jmap.models.mail.headers import property_names, text
 
@@ -89,6 +90,14 @@ class ReadHandles:
     emails: Handle[Any]
     #: The ``Email/set`` that marked them seen, when asked to.
     seen: Handle[Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SendHandles:
+    #: ``Email/set`` (or ``Email/import``) that made the message.
+    email: Handle[Any]
+    #: ``EmailSubmission/set`` that sends it.
+    submission: Handle[Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,3 +201,73 @@ def queue_thread(
         "Email/get", {"ids": thread.ref_list("emailIds"), "properties": list(properties)}
     )
     return ThreadHandles(start, thread, emails)
+
+
+def queue_send(
+    batch: Queue,
+    create: Mapping[str, Any],
+    *,
+    identity_id: str,
+    envelope: Mapping[str, Any] | None = None,
+    on_success: Mapping[str, Any] | None = None,
+    update: Mapping[str, Mapping[str, Any]] | None = None,
+) -> SendHandles:
+    """Create a message and submit it, in one request.
+
+    ``create`` is an ``Email/set`` create object (see
+    :func:`jmap.mail.compose.email_create`). ``on_success`` patches the message
+    once the submission succeeds, which is how it leaves Drafts (see
+    :func:`jmap.mail.compose.sent_patch`). ``update`` patches other messages in
+    the same ``Email/set``: the original of a reply gets ``$answered`` that way.
+    """
+    arguments: dict[str, Any] = {"create": {"draft": dict(create)}}
+    if update:
+        arguments["update"] = {key: dict(patch) for key, patch in update.items()}
+    email = batch.add("Email/set", arguments)
+    return SendHandles(email, _submit(batch, "draft", identity_id, envelope, on_success))
+
+
+def queue_import_and_send(
+    batch: Queue,
+    blob_id: str,
+    *,
+    mailbox_id: str,
+    identity_id: str,
+    keywords: Iterable[str] = ("$seen",),
+    envelope: Mapping[str, Any] | None = None,
+    on_success: Mapping[str, Any] | None = None,
+) -> SendHandles:
+    """Send a message already written in full: an uploaded ``message/rfc822`` blob.
+
+    The blob is imported into ``mailbox_id`` and submitted as it is, headers
+    and all, so nothing about it is rebuilt.
+    """
+    imported = batch.add(
+        "Email/import",
+        {
+            "emails": {
+                "message": {
+                    "blobId": blob_id,
+                    "mailboxIds": {mailbox_id: True},
+                    "keywords": dict.fromkeys(keywords, True),
+                }
+            }
+        },
+    )
+    return SendHandles(imported, _submit(batch, "message", identity_id, envelope, on_success))
+
+
+def _submit(
+    batch: Queue,
+    creation_id: str,
+    identity_id: str,
+    envelope: Mapping[str, Any] | None,
+    on_success: Mapping[str, Any] | None,
+) -> Handle[Any]:
+    submission: dict[str, Any] = {"identityId": identity_id, "emailId": CreationRef(creation_id)}
+    if envelope is not None:
+        submission["envelope"] = dict(envelope)
+    arguments: dict[str, Any] = {"create": {"send": submission}}
+    if on_success is not None:
+        arguments["onSuccessUpdateEmail"] = {"#send": dict(on_success)}
+    return batch.add("EmailSubmission/set", arguments)
