@@ -128,6 +128,45 @@ username. `--send-at` needs a server offering FUTURERELEASE, and is checked
 against its `maxDelayedSend`; `jmap submission cancel ID` stops a held message.
 `jmap send --eml FILE` sends a whole message file as it is.
 
+## Sharing and read receipts
+
+A *principal* is a person, group or resource on the server (RFC 9670). You
+share a mailbox, calendar, address book or file with a principal.
+
+```console
+$ jmap principal list bob
+$ jmap share grant mailbox:Team bob@example.com --write
+$ jmap share list mailbox:Team
+$ jmap share revoke mailbox:Team bob@example.com
+$ jmap share notifications
+```
+
+The object is `mailbox:MAILBOX`, `calendar:ID`, `addressbook:ID` or `file:ID`.
+A mailbox can be a role, path, name or id, as everywhere else. Give the
+principal by id, address or name. `jmap principal me` shows your own.
+
+`--read`, `--write` and `--admin` each give a set of rights, and each set
+includes the one before it. `--admin` also lets the principal delete the object
+and share it. `--rights readItems,addItems` gives exactly the rights you name,
+with or without the `may` prefix. A grant replaces what that principal had.
+
+Each change is a patch on one principal's entry in `shareWith`, so other
+principals keep their access. `share unshare` takes access away from everyone,
+after you confirm. You cannot grant rights to the owner of the account: the
+owner has every right already.
+
+`share list` shows the mailboxes you share, and `share list calendar` the
+calendars. `share subscribe` and `share unsubscribe` show or hide something
+another person shared with you. `share notifications` lists the changes other
+people made to your access, newest first, and `--clear` deletes them.
+
+`jmap mdn send MSG` sends a read receipt (RFC 9007) and marks the message
+`$mdnsent`. A message that has the keyword already gets no second receipt.
+`--type` is `displayed` (the default), `deleted`, `dispatched` or `processed`.
+`--auto` says a program sent it, and `--include-original` quotes the message
+back to its sender. `jmap mdn parse MSG` shows what a receipt you got says. It
+also takes `blob:ID`.
+
 ## The shell
 
 `jmap shell` keeps one connection open and runs commands typed at its prompt,
@@ -376,6 +415,16 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap vacation show/set/enable/disable` | The automatic reply while you are away. |
 | `jmap mail import FILE [--to MAILBOX]` | Add a message file to a mailbox without sending it. |
 | `jmap mail export MSG... [--dir DIR] [--save FILE] [--mbox FILE]` | Save messages as `.eml` files or one mbox. |
+| `jmap principal list [TEXT] [--type TYPE]` | People, groups and resources on the server. |
+| `jmap principal show PRINCIPAL` / `me` | One principal, or your own. |
+| `jmap share grant OBJECT PRINCIPAL --read/--write/--admin/--rights R,R` | Give a principal access. |
+| `jmap share revoke OBJECT PRINCIPAL` | Take one principal's access away. |
+| `jmap share unshare OBJECT` | Take everyone's access away, after you confirm. |
+| `jmap share list [KIND/OBJECT]` | What you share, or who has access to one object. |
+| `jmap share subscribe/unsubscribe OBJECT` | Show or hide something shared with you. |
+| `jmap share notifications [--clear]` | Changes others made to your access. |
+| `jmap mdn send MSG... [--type TYPE] [--auto]` | Send read receipts; marks them `$mdnsent`. |
+| `jmap mdn parse MSG.../blob:ID...` | What received read receipts say. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
