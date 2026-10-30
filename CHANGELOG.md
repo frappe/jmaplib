@@ -10,76 +10,90 @@ for exactly which revision of each spec this build implements.
 ### Added
 
 - **A `jmap` command.** `pip install 'jmaplib[cli]'` installs it, and
-  `python -m jmap` runs it too. This first part has named accounts with secrets in
-  the OS keyring (`jmap account add/list/show/test/login/set-default/remove`),
-  mailboxes (`jmap mailbox list/show`), the server's session and capabilities
-  (`jmap server session/capabilities/conformance/echo/refresh`), and raw method
-  calls (`jmap api call`). `--json` prints the server's own objects, and the exit
-  code says what kind of failure happened. See `docs/cli.md`.
-- **Reading and filing mail from the command line.** `jmap mail list` (`jmap ls`)
-  and `jmap mail search` (`jmap search`) number their rows, and later commands
-  take those numbers: `jmap read 3`, `jmap move 1-4 Archive`, `jmap flag 2,5`.
-  Also `thread`, `copy`, `archive`, `delete`, `seen`, `unseen`, `junk`, `notjunk`
-  and `keyword`, and `jmap mailbox create/rename/move/delete/subscribe/
-  unsubscribe/empty`. A move is a patch, so mail filed in several mailboxes stays
-  where else it is.
-- **Writing mail from the command line.** `jmap compose` (in your editor),
-  `jmap send`, `jmap reply [--all]` and `jmap forward`, each one request that
-  creates the message in Drafts and submits it; it moves to Sent only if the
-  send succeeds, and a reply's original is marked `$answered` in the same
-  request. Attachments, Markdown and HTML bodies, `--send-at` (FUTURERELEASE),
-  and `send --eml` for a whole message file. Also `jmap draft`, `jmap
-  attachment`, `jmap identity`, `jmap submission`, `jmap vacation`, and `jmap
-  mail import` and `export` (to `.eml` files or an mbox).
-- **Sharing and read receipts from the command line.** `jmap principal
-  list/show/me` finds people, groups and resources. `jmap share grant OBJECT
-  PRINCIPAL --read|--write|--admin|--rights` gives access to a mailbox,
-  calendar, address book or file, and `revoke`, `unshare`, `subscribe`,
-  `unsubscribe`, `list` and `notifications` do the rest. Each change patches
-  one principal's entry, so other principals keep their access. `jmap mdn send`
-  sends a read receipt once per message, and `jmap mdn parse` reads one.
-- **Server tools from the command line.** `jmap blob` uploads, downloads, looks
-  up and copies blobs. `jmap sieve` stores, checks and activates Sieve filters.
-  `jmap quota` shows what is used against each limit. `jmap changes TYPE
-  --since STATE` follows every page of `Foo/changes`. `jmap watch` follows the
-  event source, and can print new mail (`--new-mail --match QUERY`) or run a
-  command for each change (`--exec`). `jmap push` manages push subscriptions,
-  with encrypted payloads if `jmaplib[push]` is installed. `jmap api batch`
-  sends a file of calls as one request, with back-references between them.
-- **`jmap.mail.compose`, `jmap.mail.reply` and `jmap.mail.addresses`**: drafts
-  and their text form, the checked `Email/set` create object, the envelope for a
-  held send, replies and forwards, choosing an identity, and address parsing;
-  and `queue_send`/`queue_import_and_send` in `jmap.mail.ops`.
-- **Calendars and files from the command line** (both experimental):
-  `jmap calendar`, `jmap event list/show/create/import/update/delete/
-  notifications`, `jmap freebusy`, and `jmap file ls/tree/upload/download/
-  mkdir/rm/mv`. `event list` splits a window wider than the server expands into
-  several queries in one request. A change to one occurrence of a repeating
-  event needs `--this-occurrence`.
-- **`jmap shell`**: one connection for many commands, with `cd` into a mailbox
-  (`.` names it), `use` to switch account, history, and Tab completion of
-  commands, options and mailboxes. It reads plain lines from a pipe, so a
-  script can be fed to it.
-- **OAuth accounts.** `jmap account add NAME --auth oauth` finds the
-  authorization server from the JMAP server, registers a client if there is
-  none, and signs in through the browser or, with `--device`, a code on another
-  device. The token is kept in the keyring and renews itself.
-- **Contacts from the command line.** `jmap addressbook list/create/rename/delete`
-  and `jmap contact list/show/create/edit/delete/import`, over RFC 9610.
-  `contact edit` opens the card's JSON in your editor and sends only the
-  properties you changed. `contact import` adds a vCard file through the
-  server's `ContactCard/parse`, and sends half as many cards at a time when the
-  server answers `requestTooLarge`. On Fastmail and older Cyrus servers, the
-  legacy `Contact` type can be listed, shown, edited and deleted.
-- **`jmap config path`, `edit` and `set`**, and SRV hosts you agree to trust are
-  saved with the account, so you are asked once.
-- **`jmap.mail`**, for the same jobs from Python, with no I/O of its own: a
-  search language compiled to an `Email/query` filter
-  (`jmap.mail.query.parse`/`to_filter`), the bodies as text with HTML converted
-  by the standard library (`body_text`, `html_to_text`), and the batches behind
-  listing, reading and threads (`queue_list`, `queue_read`, `queue_thread`).
-- **The `cli` extra** now also installs `keyring`, `prompt_toolkit`, `tomli-w` and
-  `markdown-it-py`. The library itself still needs only `httpx` and `pydantic`.
+  `python -m jmap` runs it too. `--json` prints the server's own objects, and
+  the exit code tells the kind of failure. `docs/cli.md` is the guide.
+  `docs/cli-reference.md` lists every command, argument and option, and is
+  generated from the commands.
+- **Accounts and configuration.**
+  `jmap account add/list/show/test/login/set-default/remove` manages named
+  accounts, with their secrets in the OS keyring.
+  `jmap account add NAME --auth oauth` finds the authorization server from the
+  JMAP server, and registers a client if there is none. You sign in through the
+  browser, or with `--device` on another device. The token is kept in the
+  keyring and renews itself. An SRV host you agree to trust is saved with the
+  account, so you are asked once.
+  `jmap config path/edit/set` changes the configuration file.
+- **Reading and filing mail.** `jmap mail list` (`jmap ls`) and
+  `jmap mail search` (`jmap search`) number their rows, and later commands take
+  those numbers: `jmap read 3`, `jmap move 1-4 Archive`, `jmap flag 2,5`. The
+  other verbs are `thread`, `copy`, `archive`, `delete`, `seen`, `unseen`,
+  `junk`, `notjunk` and `keyword`. A move is a patch, so a message filed in
+  several mailboxes stays in the others.
+  `jmap mailbox list/show/create/rename/move/delete/subscribe/unsubscribe/empty`
+  manages mailboxes.
+- **Writing mail.** `jmap compose` (in your editor), `jmap send`,
+  `jmap reply [--all]` and `jmap forward` each send one request. The request
+  creates the message in Drafts and submits it. The message moves to Sent only
+  if the send succeeds. The same request marks the original of a reply `$answered`,
+  and of a forward `$forwarded`. They take attachments, Markdown or HTML
+  bodies, and `--send-at` (FUTURERELEASE). `jmap send --eml` sends a whole
+  message file. `jmap draft`, `jmap attachment`, `jmap identity`,
+  `jmap submission` and `jmap vacation` manage the rest. `jmap mail import`
+  adds a message file to a mailbox without sending it, and `jmap mail export`
+  saves messages as `.eml` files or one mbox.
+- **`jmap shell`** runs many commands on one connection. `cd` makes a mailbox
+  the current one, and `.` names it. `use` switches account. It has history, and
+  Tab completion of commands, options and mailboxes. It reads plain lines from a
+  pipe, so a script can be fed to it.
+- **Contacts** (RFC 9610). `jmap addressbook list/create/rename/delete` and
+  `jmap contact list/show/create/edit/delete/import` manage address books and
+  cards. `contact edit` opens the card's JSON in your editor and sends only the
+  properties you changed.
+  `contact import` adds a vCard file through the server's `ContactCard/parse`.
+  When the server answers `requestTooLarge`, it sends half as many cards at a
+  time. On Fastmail and older Cyrus servers, `contact` can list, show, edit and
+  delete the legacy `Contact` type.
+- **Calendars and files** (both experimental). The commands are
+  `jmap calendar list/create/rename/delete`,
+  `jmap event list/show/create/import/update/delete/notifications`,
+  `jmap freebusy` and `jmap file ls/tree/upload/download/mkdir/rm/mv`.
+  `event list` splits a window wider than the server expands into several
+  queries in one request. A change to one occurrence of a repeating event needs
+  `--this-occurrence`.
+- **Sharing and read receipts.** `jmap principal list/show/me` finds people,
+  groups and resources.
+  `jmap share grant OBJECT PRINCIPAL --read|--write|--admin|--rights` gives
+  access to a mailbox, calendar, address book or file. `revoke`, `unshare`,
+  `subscribe`, `unsubscribe`, `list` and `notifications` do the rest. Each
+  change patches the entry of one principal, so other principals keep their
+  access. `jmap mdn send` sends a read receipt once per message, and
+  `jmap mdn parse` reads one.
+- **Server tools.** `jmap server session/capabilities/conformance/echo/refresh`
+  shows the session and what the server supports. `jmap blob` uploads,
+  downloads, looks up and copies blobs. `jmap sieve` stores, checks and
+  activates Sieve filters. `jmap quota` shows what is used against each limit.
+  `jmap changes TYPE --since STATE` follows every page of `Foo/changes`.
+  `jmap watch` follows the event source. It can print new mail
+  (`--new-mail --match QUERY`) or run a command for each change (`--exec`).
+  `jmap push` manages push subscriptions, with encrypted payloads if
+  `jmaplib[push]` is installed.
+- **Raw method calls.** `jmap api call` sends one method with raw arguments.
+  `jmap api batch` sends a file of calls as one request, with back-references
+  between them.
+- **`jmap.mail`** does the same jobs from Python, with no I/O of its own. It
+  compiles a search language to an `Email/query` filter
+  (`jmap.mail.query.parse`/`to_filter`). It gives the bodies as text, with HTML
+  converted by the standard library (`body_text`, `html_to_text`). It queues the
+  batches behind listing, reading and threads (`queue_list`, `queue_read`,
+  `queue_thread`), and behind sending (`queue_send`, `queue_import_and_send` in
+  `jmap.mail.ops`).
+- **`jmap.mail.compose`, `jmap.mail.reply` and `jmap.mail.addresses`** make
+  drafts and their text form, the checked `Email/set` create object, the
+  envelope for a held send, and replies and forwards. They also choose an
+  identity and parse addresses.
+- **The `cli` extra** now also installs `keyring`, `prompt_toolkit`, `tomli-w`
+  and `markdown-it-py`. The library itself still needs only `httpx` and
+  `pydantic`.
 
 ## 3.0.1
 
