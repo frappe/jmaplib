@@ -158,6 +158,7 @@ class TestIdentity:
             "-- A",
         )
         assert result.code == 0, result.err
+        assert "created the identity New <a@new.example>" in result.err
         made = list(mail.identities.values())[-1]
         assert made["replyTo"] == [{"email": "r@new.example"}]
         assert made["bcc"] is None
@@ -167,7 +168,10 @@ class TestIdentity:
         assert invoke("identity", "update", "a@new.example").code == 2
         assert invoke("identity", "update", "i1", "--bcc", "nope").code == 2
         assert invoke("identity", "delete", "i1", "-y").code == 8
-        assert invoke("identity", "delete", str(made["id"]), "-y").code == 0
+        deleted = invoke("identity", "delete", str(made["id"]), "-y")
+        assert f"deleted the identity New <a@new.example> ({made['id']})" in deleted.err
+        unnamed = invoke("identity", "create", "--email", "b@new.example")
+        assert "created the identity b@new.example\n" in unnamed.err
 
 
 class TestSubmission:

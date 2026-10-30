@@ -64,7 +64,7 @@ def create(
     """Add an identity."""
     context = cli(ctx)
     created = {"email": email, **_fields(name, reply_to, bcc, signature, html_signature)}
-    _set(context, {"create": {"new": created}}, f"created the identity {email}")
+    _set(context, {"create": {"new": created}}, f"created the identity {_label(created)}")
 
 
 @app.command()
@@ -83,7 +83,7 @@ def update(
     patch = _fields(name, reply_to, bcc, signature, html_signature)
     if not patch:
         raise UsageError("nothing to change", hint="give --name, --signature, ...")
-    _set(context, {"update": {found["id"]: patch}}, f"updated {found.get('email')}")
+    _set(context, {"update": {found["id"]: patch}}, f"updated the identity {_label(found)}")
 
 
 @app.command()
@@ -91,8 +91,8 @@ def delete(ctx: typer.Context, identity: Which) -> None:
     """Delete an identity, after you confirm."""
     context = cli(ctx)
     found = _find(context, identity)
-    context.confirm(f"Delete the identity {found.get('email')}?")
-    _set(context, {"destroy": [found["id"]]}, f"deleted {found.get('email')}")
+    context.confirm(f"Delete the identity {_label(found)}?")
+    _set(context, {"destroy": [found["id"]]}, f"deleted the identity {_label(found)}")
 
 
 def _all(context: CLIContext) -> list[dict[str, Any]]:
@@ -133,6 +133,13 @@ def _fields(
         if value is not None:
             fields[key] = value
     return fields
+
+
+def _label(identity: dict[str, Any]) -> str:
+    """``Name <email> (id)``: several identities may share one address."""
+    named = f"{identity['name']} <{identity.get('email')}>" if identity.get("name") else ""
+    shown = named or str(identity.get("email"))
+    return f"{shown} ({identity['id']})" if "id" in identity else shown
 
 
 def _set(context: CLIContext, arguments: dict[str, Any], done: str) -> None:

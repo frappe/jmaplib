@@ -44,9 +44,11 @@ def set_(
     body_file: Annotated[str | None, typer.Option(help="Read the text from a file.")] = None,
     html: Annotated[str | None, typer.Option(help="An HTML version of the text.")] = None,
     start: Annotated[
-        str | None, typer.Option("--from", help="Start: 2026-12-20T00:00:00Z.")
+        str | None, typer.Option("--from", help='Start: 2026-12-20T00:00:00Z; "" clears it.')
     ] = None,
-    until: Annotated[str | None, typer.Option("--until", help="End, in the same form.")] = None,
+    until: Annotated[
+        str | None, typer.Option("--until", help='End, in the same form; "" clears it.')
+    ] = None,
     enabled: Annotated[
         bool | None, typer.Option("--enable/--disable", help="Switch it on or off.")
     ] = None,

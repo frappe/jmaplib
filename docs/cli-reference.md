@@ -2058,8 +2058,8 @@ Change the vacation response; only what you give changes.
 | `--body` | `TEXT` | The reply's text. |
 | `--body-file` | `TEXT` | Read the text from a file. |
 | `--html` | `TEXT` | An HTML version of the text. |
-| `--from` | `TEXT` | Start: 2026-12-20T00:00:00Z. |
-| `--until` | `TEXT` | End, in the same form. |
+| `--from` | `TEXT` | Start: 2026-12-20T00:00:00Z; "" clears it. |
+| `--until` | `TEXT` | End, in the same form; "" clears it. |
 | `--enable` / `--disable` |  | Switch it on or off. |
 
 ### jmap vacation show
