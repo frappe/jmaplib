@@ -92,7 +92,9 @@ class Selection:
 def list_(
     ctx: typer.Context,
     words: Words = None,
-    mailbox: Annotated[str, typer.Option("--in", help="Mailbox to list.")] = "inbox",
+    mailbox: Annotated[
+        str | None, typer.Option("--in", help="Mailbox to list; the inbox by default.")
+    ] = None,
     everywhere: Annotated[
         bool, typer.Option("-A", "--all-mailboxes", help="Every mailbox.")
     ] = False,
@@ -180,11 +182,11 @@ def _run(
     node = combine(parse(text), filters.terms())
     listed = None
     if not scope.everywhere and not mentions(node, "in", "notin"):
-        listed = context.mailboxes().resolve(scope.mailbox or "inbox")
+        listed = context.mailbox(scope.mailbox or ".")
         node = combine(node, [Term("in", f"id:{listed['id']}")])
 
     def mailbox_id(name: str) -> str:
-        return str(context.mailboxes().resolve(name)["id"])
+        return str(context.mailbox(name)["id"])
 
     query: dict[str, Any] = {
         "filter": to_filter(node, mailbox_id=mailbox_id) if node else None,

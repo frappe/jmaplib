@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 OutputName = Literal["auto", "table", "plain", "json", "jsonl", "ids"]
 ColorName = Literal["auto", "always", "never"]
-AuthKind = Literal["password", "token"]
+AuthKind = Literal["password", "token", "oauth"]
 
 #: Keys that would put a secret in a plain-text file.
 _SECRET_KEYS = ("password", "token")
@@ -47,6 +47,16 @@ class Defaults(_Strict):
     timeout: float = 30.0
 
 
+class OAuthSettings(_Strict):
+    """How an ``oauth`` account renews its token. Filled in by ``account add``."""
+
+    #: Registered dynamically (RFC 7591) when empty.
+    client_id: str = ""
+    scope: str = ""
+    #: The authorization server; found from the JMAP server when empty.
+    issuer: str = ""
+
+
 class AccountConfig(_Strict):
     """One ``[accounts.NAME]`` table."""
 
@@ -64,6 +74,7 @@ class AccountConfig(_Strict):
     ca_bundle: str = ""
     insecure: bool = False
     send_move_to_sent: bool = True
+    oauth: OAuthSettings = Field(default_factory=OAuthSettings)
 
     @model_validator(mode="before")
     @classmethod
@@ -144,6 +155,7 @@ class ResolvedAccount:
     ca_bundle: str = ""
     insecure: bool = False
     send_move_to_sent: bool = True
+    oauth: OAuthSettings = field(default_factory=OAuthSettings)
     #: Built from the environment rather than read from the file.
     synthetic: bool = field(default=False, compare=False)
 
@@ -181,6 +193,7 @@ def from_config(name: str, account: AccountConfig, defaults: Defaults) -> Resolv
         ca_bundle=account.ca_bundle,
         insecure=account.insecure,
         send_move_to_sent=account.send_move_to_sent,
+        oauth=account.oauth,
     )
 
 

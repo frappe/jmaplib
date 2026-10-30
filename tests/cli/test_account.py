@@ -139,7 +139,8 @@ class TestAdd:
         [
             (("account", "add", "x"), "give --url"),
             ((*ADD, "--password-stdin", "--token-stdin"), "not both"),
-            ((*ADD, "--auth", "oauth"), "--auth must be one of"),
+            ((*ADD, "--auth", "basic"), "--auth must be one of"),
+            ((*ADD, "--auth", "oauth", "--password-stdin"), "through the browser, not stdin"),
             ((*ADD, "--auth", "token", "--password-stdin"), "uses a token"),
             ((*ADD, "--token-stdin", "--auth", "password"), "uses a password"),
             ((*ADD, "--password-stdin"), "no password on stdin"),

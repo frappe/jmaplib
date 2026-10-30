@@ -17,9 +17,10 @@ if TYPE_CHECKING:
 
 SERVICE: Final = "jmaplib"
 
-SecretKind = Literal["password", "token"]
+SecretKind = Literal["password", "token", "oauth"]
 
-KINDS: Final[tuple[SecretKind, ...]] = ("password", "token")
+#: ``oauth`` holds the token, refresh token and expiry as JSON.
+KINDS: Final[tuple[SecretKind, ...]] = ("password", "token", "oauth")
 
 
 class KeyringUnavailableError(CLIError):

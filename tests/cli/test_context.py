@@ -58,10 +58,12 @@ class TestConfigure:
 
     def test_no_keyring_keeps_secrets_in_memory(self, make_context):
         context = make_context()
-        context.secrets.set("x", "password", "kept")
+        context.secrets = KeyringStore()
         context.configure(GlobalFlags(no_keyring=True))
         assert isinstance(context.secrets, MemoryStore)
-        assert context.secrets.get("x", "password") is None
+        kept = context.secrets
+        context.configure(GlobalFlags(no_keyring=True, quiet=True))
+        assert context.secrets is kept  # the shell keeps what it stored
 
     def test_output_comes_from_the_flag_then_the_file(self, make_context, environ, tmp_path):
         path = tmp_path / "c.toml"

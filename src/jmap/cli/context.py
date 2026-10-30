@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import webbrowser
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Final
 
@@ -20,7 +21,8 @@ from jmap.cli.auth import Credentials
 from jmap.cli.config import Config, Overrides, load_config, resolve_account, save_config
 from jmap.cli.connect import http_client, open_client, select_account
 from jmap.cli.errors import CLIError, UnsupportedError
-from jmap.cli.ids import Cursor, MailboxIndex
+from jmap.cli.ids import Cursor, Mailbox, MailboxIndex
+from jmap.cli.oauth import oauth_auth
 from jmap.cli.output import OutputFormat, OutputOptions, Renderer
 from jmap.cli.paths import config_path, state_dir
 from jmap.cli.prompts import TerminalPrompter
@@ -39,6 +41,7 @@ if TYPE_CHECKING:
     from jmap.cli.config import ResolvedAccount
     from jmap.cli.prompts import Prompter
     from jmap.cli.secrets import SecretStore
+    from jmap.cli.shell import LineSource
     from jmap.client import JMAPClient
 
     HTTPFactory = Callable[[ResolvedAccount, int, Console], httpx.Client]
@@ -79,6 +82,14 @@ class CLIContext:
     options: OutputOptions
     #: Set by commands that read the secret from stdin, before connecting.
     stdin_secret: str | None
+    #: SRV hosts the person agreed to trust during this run.
+    trusted_hosts: list[str]
+    #: Opens the OAuth sign-in page; a test replaces it.
+    open_url: Callable[[str], object]
+    #: Where ``jmap shell`` reads lines; it picks a terminal editor when unset.
+    lines: LineSource | None
+    #: The shell's ``cd``: the mailbox a listing shows when none is named.
+    current_mailbox: str | None
 
     def __init__(
         self,
@@ -109,6 +120,10 @@ class CLIContext:
         self.prompter = prompter or TerminalPrompter(self.err, stdin)
         self.options = OutputOptions()
         self.stdin_secret = None
+        self.trusted_hosts = []
+        self.open_url = webbrowser.open
+        self.lines = None
+        self.current_mailbox = None
         self._config: Config | None = None
         self._account: ResolvedAccount | None = None
         self._client: JMAPClient | None = None
@@ -122,20 +137,28 @@ class CLIContext:
         return cls(environ=environ, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr)
 
     def configure(self, flags: GlobalFlags) -> None:
-        """Apply the global options, once they are parsed."""
+        """Apply the global options, once they are parsed.
+
+        The shell calls this for every line. A change to which account is used,
+        or how, reconnects; anything else keeps the open connection.
+        """
+        if _connection(flags) != _connection(self.flags):
+            self.close_client()
+            self._account = None
+            self._config = None
         self.flags = flags
         defaults = self._config_or_defaults().defaults
         color = flags.color or defaults.color
         self.out = self._console(self._stdout, color)
         self.err = self._console(self._stderr, color, lines=True)
-        if flags.no_keyring:
+        if flags.no_keyring and not isinstance(self.secrets, MemoryStore):
             self.secrets = MemoryStore()
         self.options = OutputOptions(
             format=flags.output or OutputFormat(defaults.output),
             quiet=flags.quiet,
             pager="" if defaults.pager == "never" else self._pager(),
         )
-        if flags.verbose >= 2:
+        if flags.verbose >= 2 and self._log_handler is None:
             self._log_wire()
 
     # -- configuration ------------------------------------------------------ #
@@ -181,8 +204,19 @@ class CLIContext:
             environ=self.environ,
             prompter=self.prompter,
             warn=self.renderer.note,
+            oauth=self.oauth_auth,
             stdin_secret=self.stdin_secret,
         )
+
+    def oauth_auth(self, account: ResolvedAccount) -> httpx.Auth:
+        """The renewing credential of an ``oauth`` account."""
+        return oauth_auth(
+            account, self.secrets, lambda: self.http_factory(account, self.flags.verbose, self.err)
+        )
+
+    def plain_http(self, account: ResolvedAccount) -> httpx.Client:
+        """An HTTP client with ``account``'s settings and no credential, for signing in."""
+        return self.http_factory(account, self.flags.verbose, self.err)
 
     def connect(self, account: ResolvedAccount, auth: httpx.Auth) -> JMAPClient:
         """Open a client for ``account``; the context closes it."""
@@ -190,13 +224,31 @@ class CLIContext:
         http = self.http_factory(account, self.flags.verbose, self.err)
         try:
             self._client = open_client(
-                account, auth=auth, http=http, prompter=self.prompter, registry=self.registry
+                account,
+                auth=auth,
+                http=http,
+                prompter=self.prompter,
+                registry=self.registry,
+                on_trust=lambda host: self._trust(account, host),
             )
         except BaseException:
             http.close()
             raise
         self._http = http
         return self._client
+
+    def _trust(self, account: ResolvedAccount, host: str) -> None:
+        """Remember an SRV host the person agreed to, for this account."""
+        self.trusted_hosts.append(host)
+        stored = self.config.accounts.get(account.name)
+        if stored is None or account.synthetic:
+            return  # `account add` saves it with the rest of the account
+        trusted = [*stored.trusted_srv_targets, host]
+        accounts = {
+            **self.config.accounts,
+            account.name: stored.model_copy(update={"trusted_srv_targets": trusted}),
+        }
+        self.save_config(self.config.model_copy(update={"accounts": accounts}))
 
     def client(self) -> JMAPClient:
         """The client for this run's account, connecting on first use."""
@@ -225,6 +277,22 @@ class CLIContext:
         if self._mailboxes is None:
             self._mailboxes = MailboxIndex.load(self.require("Mailbox/get"))
         return self._mailboxes
+
+    def mailbox(self, reference: str) -> Mailbox:
+        """The mailbox ``reference`` names; ``.`` is the shell's current one."""
+        if reference == ".":
+            reference = self.current_mailbox or "inbox"
+        return self.mailboxes().resolve(reference)
+
+    @property
+    def loaded_mailboxes(self) -> MailboxIndex | None:
+        """The mailbox index if it is already loaded; never a request."""
+        return self._mailboxes
+
+    @property
+    def connected(self) -> JMAPClient | None:
+        """The open client, if there is one; never a connection."""
+        return self._client
 
     def forget_mailboxes(self) -> None:
         """Drop the mailbox index after a change, so the next use reloads it."""
@@ -323,6 +391,18 @@ class CLIContext:
                 f"this server does not advertise {spec.urn}, needed by {method}"
             )
         return UnsupportedError(f"this server does not offer {method}")
+
+
+def _connection(flags: GlobalFlags) -> tuple[object, ...]:
+    """The flags that decide which account is used, and how."""
+    return (
+        flags.account,
+        flags.account_id,
+        flags.experimental,
+        flags.insecure,
+        flags.config,
+        flags.no_keyring,
+    )
 
 
 def _spec_owning(registry: Registry, method: str) -> CapabilitySpec | None:

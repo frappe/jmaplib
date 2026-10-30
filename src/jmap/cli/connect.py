@@ -24,6 +24,8 @@ from jmap.core.narrow import is_list, is_object
 from jmap.discovery import WELL_KNOWN_PATH
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rich.console import Console
 
     from jmap.capabilities.registry import Registry
@@ -63,8 +65,12 @@ def open_client(
     http: httpx.Client,
     prompter: Prompter,
     registry: Registry | None = None,
+    on_trust: Callable[[str], None] | None = None,
 ) -> JMAPClient:
-    """Fetch the session, then select the JMAP account the settings name."""
+    """Fetch the session, then select the JMAP account the settings name.
+
+    ``on_trust`` hears each SRV host the person agrees to at the prompt.
+    """
     options: dict[str, Any] = {
         "auth": auth,
         "http": http,
@@ -74,7 +80,7 @@ def open_client(
     if account.url:
         client = JMAPClient.connect(session_url(account.url), **options)
     else:
-        confirm = srv_confirmation(prompter, account.trusted_srv_targets)
+        confirm = srv_confirmation(prompter, account.trusted_srv_targets, on_trust)
         client = JMAPClient.discover(account.address, confirm_srv_target=confirm, **options)
     if account.account_id:
         select_account(client, find_account(client.session, account.account_id))

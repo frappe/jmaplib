@@ -35,6 +35,7 @@ def credentials(
         environ=environ or {},
         prompter=prompter or ScriptedPrompter(interactive=False),
         warn=(warnings if warnings is not None else []).append,
+        oauth=lambda account: BearerAuth(f"oauth for {account.name}"),
         stdin_secret=stdin_secret,
     )
 
@@ -101,6 +102,11 @@ class TestOrder:
         )
         assert found.secret(ACCOUNT) == "p"
         assert warnings == ["no usable keyring (none); trying the other sources"]
+
+
+def test_oauth_accounts_use_the_oauth_factory():
+    oauth = ResolvedAccount(name="o", address="", url="u", auth="oauth", username="", account_id="")
+    assert isinstance(credentials().auth(oauth), BearerAuth)
 
 
 class TestMakeAuth:

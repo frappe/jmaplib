@@ -48,7 +48,7 @@ def show(ctx: typer.Context, mailbox: MailboxRef) -> None:
     """Show one mailbox, with its counts and your rights on it."""
     context = cli(ctx)
     index = context.mailboxes()
-    found = index.resolve(mailbox)
+    found = context.mailbox(mailbox)
     client = context.client()
     with client.batch() as batch:
         handle = batch.add("Mailbox/get", {"ids": [found["id"]]})

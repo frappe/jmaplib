@@ -28,7 +28,7 @@ def create(
     """Create a mailbox."""
     context = cli(ctx)
     parent_path, _, name = path.strip("/").rpartition("/")
-    parent = context.mailboxes().resolve(parent_path) if parent_path else None
+    parent = context.mailbox(parent_path) if parent_path else None
     mailbox: dict[str, Any] = {"name": name, "parentId": parent["id"] if parent else None}
     if role:
         mailbox["role"] = role.lower()
@@ -45,7 +45,7 @@ def rename(
     if "/" in name:
         raise UsageError("give a name, not a path", hint="move it with 'jmap mailbox move'")
     context = cli(ctx)
-    found = context.mailboxes().resolve(mailbox)
+    found = context.mailbox(mailbox)
     _set(context, {"update": {found["id"]: {"name": name}}}, f"renamed {found['name']} to {name}")
 
 
@@ -60,8 +60,8 @@ def move_(
     """Move a mailbox under another one, or to the top level."""
     context = cli(ctx)
     index = context.mailboxes()
-    found = index.resolve(mailbox)
-    under = index.resolve(parent)["id"] if parent else None
+    found = context.mailbox(mailbox)
+    under = context.mailbox(parent)["id"] if parent else None
     where = index.path_of(str(under)) if under else "the top level"
     _set(
         context, {"update": {found["id"]: {"parentId": under}}}, f"moved {found['name']} to {where}"
@@ -78,7 +78,7 @@ def delete(
 ) -> None:
     """Delete a mailbox. The server refuses one that still holds mail, unless --with-mail."""
     context = cli(ctx)
-    found = context.mailboxes().resolve(mailbox)
+    found = context.mailbox(mailbox)
     path = context.mailboxes().path_of(str(found["id"]))
     extra = " and the mail only in it" if with_mail else ""
     context.confirm(f"Delete the mailbox {path}{extra}?")
@@ -108,10 +108,10 @@ def empty(
 ) -> None:
     """Permanently destroy the mail in a mailbox, such as Trash or Junk."""
     context = cli(ctx)
-    found = context.mailboxes().resolve(mailbox)
+    found = context.mailbox(mailbox)
     node = combine(parse(query_text([match] if match else [])), [Term("in", f"id:{found['id']}")])
     assert node is not None  # it holds at least the in: term
-    query = to_filter(node, mailbox_id=lambda name: str(context.mailboxes().resolve(name)["id"]))
+    query = to_filter(node, mailbox_id=lambda name: str(context.mailbox(name)["id"]))
     ids = _all_ids(context, query)
     path = context.mailboxes().path_of(str(found["id"]))
     if not ids:
@@ -140,7 +140,7 @@ def _all_ids(context: CLIContext, query: dict[str, Any]) -> list[str]:
 
 
 def _subscribed(context: CLIContext, mailbox: str, *, value: bool) -> None:
-    found = context.mailboxes().resolve(mailbox)
+    found = context.mailbox(mailbox)
     verb = "subscribed to" if value else "unsubscribed from"
     _set(context, {"update": {found["id"]: {"isSubscribed": value}}}, f"{verb} {found['name']}")
 

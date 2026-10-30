@@ -40,22 +40,26 @@ class Credentials:
         environ: Mapping[str, str],
         prompter: Prompter,
         warn: Callable[[str], None],
+        oauth: Callable[[ResolvedAccount], httpx.Auth],
         stdin_secret: str | None = None,
     ) -> None:
         self._secrets = secrets
         self._environ = environ
         self._prompter = prompter
         self._warn = warn
+        self._oauth = oauth
         self._stdin_secret = stdin_secret
         self.source = ""
 
     def auth(self, account: ResolvedAccount) -> httpx.Auth:
         """The ``httpx.Auth`` for ``account``, or :class:`AuthError` with the remedies."""
+        if account.auth == "oauth":
+            return self._oauth(account)
         return make_auth(account, self.secret(account))
 
     def secret(self, account: ResolvedAccount) -> str:
-        """The first secret found for ``account``; :attr:`source` says where."""
-        kind = account.auth
+        """The first password or token found for ``account``; :attr:`source` says where."""
+        kind = "token" if account.auth == "token" else "password"
         if self._stdin_secret:
             self.source = "stdin"
             return self._stdin_secret

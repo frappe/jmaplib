@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
+import httpx
 import typer
 
+from jmap.auth import BearerAuth
 from jmap.cli.auth import make_auth
 from jmap.cli.commands import cli
-from jmap.cli.config import AccountConfig, AuthKind, ResolvedAccount, from_config
+from jmap.cli.config import AccountConfig, AuthKind, OAuthSettings, ResolvedAccount, from_config
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import AuthError, NotFoundError, UsageError
+from jmap.cli.oauth import SignIn, dumps_token, sign_in
 from jmap.cli.output import Column, View
 from jmap.cli.secrets import KINDS, KeyringUnavailableError
 from jmap.client import JMAPClient
@@ -30,6 +33,12 @@ PasswordStdin = Annotated[
     bool, typer.Option("--password-stdin", help="Read the password from stdin.")
 ]
 TokenStdin = Annotated[bool, typer.Option("--token-stdin", help="Read the token from stdin.")]
+Device = Annotated[
+    bool, typer.Option("--device", help="OAuth: sign in on another device, with a code.")
+]
+NoBrowser = Annotated[
+    bool, typer.Option("--no-browser", help="OAuth: print the address instead of opening it.")
+]
 NoVerify = Annotated[bool, typer.Option("--no-verify", help="Do not connect to check it.")]
 
 
@@ -41,7 +50,9 @@ def add(
     address: Annotated[
         str, typer.Option(help="Email address; finds the server when --url is not given.")
     ] = "",
-    auth: Annotated[str | None, typer.Option(help="password (the default) or token.")] = None,
+    auth: Annotated[
+        str | None, typer.Option(help="password (the default), token, or oauth.")
+    ] = None,
     username: Annotated[str, typer.Option(help="Login name; defaults to the address.")] = "",
     identity: Annotated[str, typer.Option(help="Default From address.")] = "",
     ca_bundle: Annotated[str, typer.Option(help="CA certificates to trust.")] = "",
@@ -53,10 +64,16 @@ def add(
     token_stdin: TokenStdin = False,
     no_verify: NoVerify = False,
     force: Annotated[bool, typer.Option("--force", help="Replace an existing account.")] = False,
+    device: Device = False,
+    no_browser: NoBrowser = False,
+    client_id: Annotated[str, typer.Option(help="OAuth client id; registered if empty.")] = "",
+    scope: Annotated[str, typer.Option(help="OAuth scope to ask for.")] = "",
+    issuer: Annotated[str, typer.Option(help="OAuth server; found from the server if empty.")] = "",
 ) -> None:
     """Add a named account, check it connects, and store its secret in the keyring.
 
-    The global --account-id, --experimental and --insecure are stored with it.
+    With --auth oauth, sign in through the browser, or with --device on another
+    device. The global --account-id, --experimental and --insecure are stored too.
     """
     context = cli(ctx)
     config = context.config
@@ -75,14 +92,26 @@ def add(
         trusted_srv_targets=trust_srv or [],
         ca_bundle=ca_bundle,
         insecure=context.flags.insecure,
+        oauth=OAuthSettings(client_id=client_id, scope=scope, issuer=issuer),
     )
     resolved = from_config(name, stored, config.defaults)
-    if resolved.auth == "password" and not resolved.username:
-        # Before asking for the password, not after.
-        raise UsageError(f"account {name!r} has no username to sign in with", hint=_hint(name))
-    secret = _new_secret(context, resolved, password_stdin or token_stdin, ask_environment=True)
+    auth_now: httpx.Auth
+    if resolved.auth == "oauth":
+        signed = _sign_in(context, resolved, device=device, browser=not no_browser)
+        stored = stored.model_copy(update={"oauth": signed.settings})
+        resolved = from_config(name, stored, config.defaults)
+        secret, auth_now = dumps_token(signed.token), BearerAuth(signed.token.access_token)
+    else:
+        if resolved.auth == "password" and not resolved.username:
+            # Before asking for the password, not after.
+            raise UsageError(f"account {name!r} has no username to sign in with", hint=_hint(name))
+        secret = _new_secret(context, resolved, password_stdin or token_stdin, ask_environment=True)
+        auth_now = make_auth(resolved, secret)
     if not no_verify:
-        _connected(context, context.connect(resolved, make_auth(resolved, secret)))
+        _connected(context, context.connect(resolved, auth_now))
+    if context.trusted_hosts:
+        trusted = [*stored.trusted_srv_targets, *context.trusted_hosts]
+        stored = stored.model_copy(update={"trusted_srv_targets": trusted})
     accounts = {**config.accounts, name: stored}
     first = default or not config.default_account
     context.save_config(
@@ -192,17 +221,28 @@ def login(
     password_stdin: PasswordStdin = False,
     token_stdin: TokenStdin = False,
     no_verify: NoVerify = False,
+    device: Device = False,
+    no_browser: NoBrowser = False,
 ) -> None:
-    """Enter a named account's password or token again, and store it in the keyring."""
+    """Sign in again: a new password or token, or a new OAuth token."""
     context = cli(ctx)
     context.use_account(name)
     resolved = context.account
     if resolved.synthetic:
         raise UsageError(f"{resolved.name!r} comes from JMAP_URL; add it with 'jmap account add'")
     _auth_kind(resolved.auth, password_stdin=password_stdin, token_stdin=token_stdin)
-    secret = _new_secret(context, resolved, password_stdin or token_stdin, ask_environment=False)
+    auth_now: httpx.Auth
+    if resolved.auth == "oauth":
+        signed = _sign_in(context, resolved, device=device, browser=not no_browser)
+        _keep_settings(context, resolved.name, signed.settings)
+        secret, auth_now = dumps_token(signed.token), BearerAuth(signed.token.access_token)
+    else:
+        secret = _new_secret(
+            context, resolved, password_stdin or token_stdin, ask_environment=False
+        )
+        auth_now = make_auth(resolved, secret)
     if not no_verify:
-        context.connect(resolved, make_auth(resolved, secret))
+        context.connect(resolved, auth_now)
     _store(context, resolved, secret)
     context.renderer.note(f"stored the {resolved.auth} for {resolved.name!r}")
 
@@ -219,9 +259,34 @@ def _auth_kind(given: str | None, *, password_stdin: bool, token_stdin: bool) ->
     wanted = given or ("token" if token_stdin else "password")
     if wanted not in KINDS:
         raise UsageError(f"--auth must be one of {', '.join(KINDS)}, not {wanted!r}")
+    if wanted == "oauth" and (password_stdin or token_stdin):
+        raise UsageError("an oauth account signs in through the browser, not stdin")
     if (wanted == "token" and password_stdin) or (wanted == "password" and token_stdin):
         raise UsageError(f"this account uses a {wanted}; read it with --{wanted}-stdin")
-    return "token" if wanted == "token" else "password"
+    return "token" if wanted == "token" else "oauth" if wanted == "oauth" else "password"
+
+
+def _sign_in(
+    context: CLIContext, account: ResolvedAccount, *, device: bool, browser: bool
+) -> SignIn:
+    with context.plain_http(account) as http:
+        return sign_in(
+            account,
+            http=http,
+            say=lambda text: context.err.print(text, markup=False, highlight=False),
+            device=device,
+            open_url=context.open_url if browser else None,
+        )
+
+
+def _keep_settings(context: CLIContext, name: str, settings: OAuthSettings) -> None:
+    """Save a newly registered client id or found issuer with the account."""
+    config = context.config
+    stored = config.accounts[name]
+    if stored.oauth == settings:
+        return
+    accounts = {**config.accounts, name: stored.model_copy(update={"oauth": settings})}
+    context.save_config(config.model_copy(update={"accounts": accounts}))
 
 
 def _new_secret(

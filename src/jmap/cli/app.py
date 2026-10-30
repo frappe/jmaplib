@@ -125,15 +125,18 @@ def root(
     )
 
 
-register(app)
-
-
-def run(argv: Sequence[str] | None = None, *, context: CLIContext | None = None) -> int:
+def run(
+    argv: Sequence[str] | None = None,
+    *,
+    context: CLIContext | None = None,
+    close: bool = True,
+) -> int:
     """Run one command line and return its exit status.
 
     Typer runs standalone: it reports usage errors itself and ends with
     ``SystemExit``, which becomes the return value here so ``jmap shell`` can
     keep going. Anything else a command raises is reported by :func:`report`.
+    The shell passes ``close=False`` to keep its connection between lines.
     """
     context = context or CLIContext.from_environment(os.environ)
     args = hoist_globals(sys.argv[1:] if argv is None else argv)
@@ -151,7 +154,8 @@ def run(argv: Sequence[str] | None = None, *, context: CLIContext | None = None)
             verbose=context.flags.verbose,
         )
     finally:
-        context.close()
+        if close:
+            context.close()
     return _status(status)
 
 
@@ -192,3 +196,7 @@ def _status(code: object) -> int:
     if code is None:
         return ExitCode.OK
     return code if isinstance(code, int) else ExitCode.FAILURE
+
+
+# Last, so a command module may import this one (the shell runs `run`).
+register(app)

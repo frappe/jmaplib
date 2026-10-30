@@ -41,7 +41,7 @@ def move(
 ) -> None:
     """Move messages to a mailbox: jmap move 1-3 Archive/2025."""
     context = cli(ctx)
-    target = context.mailboxes().resolve(mailbox)
+    target = context.mailbox(mailbox)
     _file(context, select(context, messages), target, source, verb="moved")
 
 
@@ -53,7 +53,7 @@ def copy(
 ) -> None:
     """Add messages to another mailbox too, keeping them where they are."""
     context = cli(ctx)
-    target = context.mailboxes().resolve(mailbox)
+    target = context.mailbox(mailbox)
     selection = select(context, messages)
     patch = mailbox_patch(add=[Id(str(target["id"]))])
     _update(context, selection, patch, f"copied {{n}} message(s) to {target['name']}")
@@ -194,7 +194,7 @@ def _file(
     where = ""
     if target is not None:
         to = str(target["id"])
-        origin = str(context.mailboxes().resolve(source)["id"]) if source else selection.mailbox_id
+        origin = str(context.mailbox(source)["id"]) if source else selection.mailbox_id
         if origin is None:
             patch["mailboxIds"] = {to: True}
             context.renderer.note(
@@ -224,6 +224,6 @@ def _role(context: CLIContext, role: str, hint: str) -> Mailbox:
 
 def _optional_role(context: CLIContext, role: str) -> Mailbox | None:
     try:
-        return context.mailboxes().resolve(role)
+        return context.mailbox(role)
     except NotFoundError:
         return None

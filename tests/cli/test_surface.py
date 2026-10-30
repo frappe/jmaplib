@@ -49,6 +49,7 @@ SURFACE = {
     },
     "server": {"session", "capabilities", "conformance", "echo", "refresh"},
     "api": {"call"},
+    "config": {"path", "edit", "set"},
 }
 
 
@@ -90,6 +91,10 @@ def test_every_shortcut_exists_and_is_the_same_command():
     for alias, verb in (("ls", "list"), ("read", "read"), ("move", "move")):
         alias_params = [param.name for param in root.commands[alias].params]
         assert alias_params == [param.name for param in mail.commands[verb].params], alias
+
+
+def test_the_shell_exists():
+    assert "shell" in tree().commands
 
 
 def test_every_noun_and_verb_exists():

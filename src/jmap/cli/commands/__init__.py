@@ -22,12 +22,14 @@ def register(app: typer.Typer) -> None:
     from jmap.cli.commands import (
         account,
         api,
+        config_cmd,
         mail,
         mail_read,
         mail_triage,
         mailbox,
         mailbox_edit,
         server,
+        shell_cmd,
     )
 
     # Importing these is what defines their commands on mail.app and mailbox.app.
@@ -38,6 +40,8 @@ def register(app: typer.Typer) -> None:
     app.add_typer(mail.app, name="mail", help="List, search, read and file messages.")
     app.add_typer(server.app, name="server", help="The server's session and capabilities.")
     app.add_typer(api.app, name="api", help="Raw JMAP method calls.")
+    app.add_typer(config_cmd.app, name="config", help="The configuration file.")
+    app.command("shell")(shell_cmd.shell)
     _aliases(app, mail.app)
 
 

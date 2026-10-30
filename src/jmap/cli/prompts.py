@@ -61,8 +61,15 @@ class TerminalPrompter:
         return None if self._stdin.isatty() else self._stdin
 
 
-def srv_confirmation(prompter: Prompter, trusted: Iterable[str]) -> Callable[[SRVTarget], bool]:
-    """Answer the library's SRV question from the trusted list, else ask (RFC 6186 §6)."""
+def srv_confirmation(
+    prompter: Prompter,
+    trusted: Iterable[str],
+    on_trust: Callable[[str], None] | None = None,
+) -> Callable[[SRVTarget], bool]:
+    """Answer the library's SRV question from the trusted list, else ask (RFC 6186 §6).
+
+    ``on_trust`` hears each host the person agreed to, so it can be remembered.
+    """
     allowed = {host.lower().rstrip(".") for host in trusted}
 
     def confirm(target: SRVTarget) -> bool:
@@ -70,9 +77,12 @@ def srv_confirmation(prompter: Prompter, trusted: Iterable[str]) -> Callable[[SR
             return True
         if not prompter.interactive:
             return False
-        return prompter.confirm(
+        agreed = prompter.confirm(
             f"DNS points this address at {target.host}:{target.port}, outside its domain. "
             "Send your credentials there?"
         )
+        if agreed and on_trust is not None:
+            on_trust(target.host.lower().rstrip("."))
+        return agreed
 
     return confirm
