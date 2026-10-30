@@ -13,7 +13,7 @@ import os
 import sys
 import webbrowser
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 from rich.console import Console
 
@@ -21,6 +21,7 @@ from jmap.cli.auth import Credentials
 from jmap.cli.config import Config, Overrides, load_config, resolve_account, save_config
 from jmap.cli.connect import http_client, open_client, select_account
 from jmap.cli.errors import CLIError, UnsupportedError
+from jmap.cli.guard import Guard, GuardedClient
 from jmap.cli.ids import Cursor, Mailbox, MailboxIndex
 from jmap.cli.oauth import oauth_auth
 from jmap.cli.output import OutputFormat, OutputOptions, Renderer
@@ -65,6 +66,8 @@ class GlobalFlags:
     insecure: bool = False
     config: str | None = None
     yes: bool = False
+    read_only: bool = False
+    dry_run: bool = False
 
 
 class CLIContext:
@@ -126,11 +129,12 @@ class CLIContext:
         self.current_mailbox = None
         self._config: Config | None = None
         self._account: ResolvedAccount | None = None
-        self._client: JMAPClient | None = None
+        self._client: GuardedClient | None = None
         self._http: httpx.Client | None = None
         self._mailboxes: MailboxIndex | None = None
         self._cursor: Cursor | None = None
         self._contact_cursor: Cursor | None = None
+        self._guard: Guard | None = None
         self._log_handler: logging.Handler | None = None
 
     @classmethod
@@ -186,6 +190,7 @@ class CLIContext:
                 account_id=self.flags.account_id,
                 experimental=self.flags.experimental,
                 insecure=self.flags.insecure,
+                read_only=self.flags.read_only,
             )
             self._account = resolve_account(self.config, overrides, self.environ)
         return self._account
@@ -224,13 +229,17 @@ class CLIContext:
         self.close_client()
         http = self.http_factory(account, self.flags.verbose, self.err)
         try:
-            self._client = open_client(
-                account,
-                auth=auth,
-                http=http,
-                prompter=self.prompter,
-                registry=self.registry,
-                on_trust=lambda host: self._trust(account, host),
+            self._client = cast(
+                "GuardedClient",
+                open_client(
+                    account,
+                    auth=auth,
+                    http=http,
+                    prompter=self.prompter,
+                    registry=self.registry,
+                    on_trust=lambda host: self._trust(account, host),
+                    client_class=GuardedClient,
+                ),
             )
         except BaseException:
             http.close()
@@ -255,8 +264,21 @@ class CLIContext:
         """The client for this run's account, connecting on first use."""
         if self._client is None:
             account = self.account
-            return self.connect(account, self.credentials().auth(account))
-        return self._client
+            self.connect(account, self.credentials().auth(account))
+        client = cast("GuardedClient", self._client)
+        if client.guard != self.guard:
+            client.guard = self.guard
+        return client
+
+    @property
+    def guard(self) -> Guard:
+        """What this run lets reach the server: see :mod:`jmap.cli.guard`."""
+        if self._guard is None or (self._guard.read_only, self._guard.dry_run) != (
+            self.account.read_only,
+            self.flags.dry_run,
+        ):
+            self._guard = Guard(read_only=self.account.read_only, dry_run=self.flags.dry_run)
+        return self._guard
 
     def require(self, *methods: str) -> JMAPClient:
         """The client, once every method in ``methods`` is known to work on this server.
@@ -339,8 +361,11 @@ class CLIContext:
         return Renderer(self.out, self.err, self.options)
 
     def confirm(self, question: str) -> None:
-        """Go on only if ``--yes`` was given or the person agrees."""
-        if self.flags.yes:
+        """Go on only if ``--yes`` was given or the person agrees.
+
+        A dry run goes on without asking: it shows the change and makes none.
+        """
+        if self.flags.yes or self.flags.dry_run:
             return
         if not self.prompter.interactive:
             raise CLIError(f"{question} (refusing without a terminal)", hint="pass --yes")
@@ -419,6 +444,7 @@ def _connection(flags: GlobalFlags) -> tuple[object, ...]:
         flags.insecure,
         flags.config,
         flags.no_keyring,
+        flags.read_only,
     )
 
 

@@ -476,6 +476,35 @@ Mailbox names come from the server. If it does not answer within three seconds,
 or needs a password the keyring does not have, Tab offers the roles alone
 (`inbox`, `sent`, `archive` and so on): completion never asks you anything.
 
+## AI agents and scripts
+
+An agent that can run commands uses `jmap` as a script does: `--json` prints the
+server's own objects, `--count` the number of matches, and the exit code says
+what failed. It acts as you, with your saved password, so three things keep it
+safe.
+
+- **Read-only.** `--read-only`, `JMAP_READ_ONLY=1`, or `read_only = true` in
+  the configuration (for one account, or under `[defaults]` for all) refuses
+  every change before it leaves your machine, with exit code 11. Reading works
+  as usual, and `read` does not mark mail as read. Each of these can switch
+  the mode on; none can switch off what another set. So `read_only = true` in
+  the file holds whatever the agent types.
+- **Dry run.** `--dry-run` sends the reads a command needs, and stops at the
+  first change: it prints that request as JSON and changes nothing. Uploads
+  are not made, so a message with attachments still shows the request that
+  would create it. An agent can show you the change and wait for your yes.
+- **The agent guide.** `jmap agent-guide` prints one page for an agent: the
+  safety rules, which command answers which question, the search language and
+  the exit codes. `jmap agent-guide --install` saves it as a Claude Code skill
+  in `~/.claude/skills/jmap/SKILL.md`, and Claude Code loads it when you ask
+  about your mail.
+
+```console
+$ jmap --read-only ls --from github --count
+$ jmap --dry-run delete 3 --permanent
+$ jmap agent-guide --install
+```
+
 ## Two kinds of account
 
 A **named account** is one server and one credential. You can have any number;
@@ -556,6 +585,8 @@ These work on every command, before or after the command name.
 | `--insecure` | Do not verify TLS certificates. |
 | `--config FILE` | Another configuration file. |
 | `-y`, `--yes` | Answer yes to confirmations. |
+| `--read-only` | Refuse anything that would change the server; reading works. |
+| `--dry-run` | Print the first change as JSON instead of sending it. |
 
 A command that needs an experimental capability turns it on by itself, so
 `--experimental` is rarely needed.
@@ -588,6 +619,7 @@ output = "auto"     # auto | table | plain | json | jsonl | ids
 color = "auto"      # auto | always | never
 pager = "auto"      # auto | never ($JMAP_PAGER, then $PAGER)
 timeout = 30.0
+read_only = false   # true: no account may change anything
 
 [accounts.work]
 address = "alice@example.com"
@@ -599,6 +631,7 @@ experimental = false
 trusted_srv_targets = []     # SRV hosts outside the domain you trust
 ca_bundle = ""
 insecure = false
+read_only = false            # true: this account may not change anything
 
 [accounts.work.oauth]          # for auth = "oauth"; filled in by `account add`
 client_id = ""
@@ -640,6 +673,7 @@ $ JMAP_URL=https://mail.example.com/.well-known/jmap JMAP_USER=ci@example.com \
 | 8 | A change partly failed. |
 | 9 | Not found: no such mailbox, account or id. |
 | 10 | The configuration is wrong. |
+| 11 | Refused: the account or the run is read-only. |
 | 130 | Interrupted. |
 
 Each failure is one `jmap: <message>` line on stderr, sometimes with a `hint:`
@@ -737,6 +771,7 @@ The [command reference](cli-reference.md) gives every argument and option.
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
 | `jmap completion SHELL [--install]` | Tab completion for bash, zsh, fish or PowerShell. |
+| `jmap agent-guide [--install]` | The guide for AI agents; `--install` saves it as a Claude Code skill. |
 
 A `MAILBOX` is a role (`inbox`, `sent`, `archive`), a path (`Archive/2025`), a
 unique name, or an id. Roles are tried before names, because names are

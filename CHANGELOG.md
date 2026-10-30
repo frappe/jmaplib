@@ -84,6 +84,12 @@ for exactly which revision of each spec this build implements.
   `--poll SECONDS` asks for changes over the plain API instead.
   `jmap push` manages push subscriptions, with encrypted payloads if
   `jmaplib[push]` is installed.
+- **Safe for AI agents.** `--read-only` (also `JMAP_READ_ONLY=1`, and
+  `read_only = true` per account or for all in the configuration) refuses every
+  change before it is sent, with the new exit code 11; reading still works and
+  does not mark mail read. `--dry-run` prints the first change as JSON and
+  sends nothing. `jmap agent-guide` prints a guide for agents, and `--install`
+  saves it as a Claude Code skill.
 - **Tab completion.** `jmap completion bash|zsh|fish|powershell [--install]`
   completes commands, options, account names, mailboxes from the server, and
   `--columns` and `--sort` items. It never prompts, and offers the mailbox

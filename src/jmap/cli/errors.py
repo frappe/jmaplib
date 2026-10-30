@@ -57,6 +57,7 @@ class ExitCode(IntEnum):
     PARTIAL = 8
     NOT_FOUND = 9
     CONFIG = 10
+    READ_ONLY = 11
     INTERRUPTED = 130
 
 

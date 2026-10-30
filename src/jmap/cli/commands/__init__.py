@@ -23,6 +23,7 @@ def register(app: typer.Typer) -> None:
     from jmap.cli.commands import (
         account,
         addressbook,
+        agent_guide,
         api,
         attachment,
         calendar,
@@ -81,6 +82,7 @@ def register(app: typer.Typer) -> None:
     app.add_typer(file.app, name="file", help="Files stored on the server (experimental).")
     app.command("shell")(shell_cmd.shell)
     app.command("completion")(completion_cmd.completion)
+    app.command("agent-guide")(agent_guide.agent_guide)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
     _aliases(app, mail.app)

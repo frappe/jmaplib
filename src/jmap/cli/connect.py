@@ -66,6 +66,7 @@ def open_client(
     prompter: Prompter,
     registry: Registry | None = None,
     on_trust: Callable[[str], None] | None = None,
+    client_class: type[JMAPClient] = JMAPClient,
 ) -> JMAPClient:
     """Fetch the session, then select the JMAP account the settings name.
 
@@ -78,10 +79,10 @@ def open_client(
         "experimental": account.experimental,
     }
     if account.url:
-        client = JMAPClient.connect(session_url(account.url), **options)
+        client = client_class.connect(session_url(account.url), **options)
     else:
         confirm = srv_confirmation(prompter, account.trusted_srv_targets, on_trust)
-        client = JMAPClient.discover(account.address, confirm_srv_target=confirm, **options)
+        client = client_class.discover(account.address, confirm_srv_target=confirm, **options)
     if account.account_id:
         select_account(client, find_account(client.session, account.account_id))
     return client

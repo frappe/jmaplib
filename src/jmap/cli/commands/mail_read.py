@@ -74,7 +74,10 @@ def read(
             selection.ids,
             headers=names,
             all_headers=all_headers,
-            mark_seen=mark_seen and writable and client.capabilities.supports("Email/set"),
+            mark_seen=mark_seen
+            and writable
+            and context.guard.writes_allowed
+            and client.capabilities.supports("Email/set"),
             max_body_bytes=max_body_bytes,
         )
     emails: list[Email] = handles.emails.result.items

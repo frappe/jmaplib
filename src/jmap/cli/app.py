@@ -7,6 +7,7 @@ from the shell and line by line inside ``jmap shell``.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -20,6 +21,7 @@ from jmap.cli.commands import register
 from jmap.cli.completers import accounts
 from jmap.cli.context import CLIContext, GlobalFlags
 from jmap.cli.errors import ExitCode, report
+from jmap.cli.guard import DryRunDone
 from jmap.cli.output import ColorMode, OutputFormat
 
 if TYPE_CHECKING:
@@ -43,6 +45,8 @@ FLAG_OPTIONS: Final = frozenset(
         "--insecure",
         "-y",
         "--yes",
+        "--read-only",
+        "--dry-run",
     }
 )
 #: No command may define an option with one of these names.
@@ -101,6 +105,14 @@ def root(
     ] = False,
     config: Annotated[str | None, typer.Option("--config", help="Configuration file.")] = None,
     yes: Annotated[bool, typer.Option("-y", "--yes", help="Answer yes to confirmations.")] = False,
+    read_only: Annotated[
+        bool,
+        typer.Option("--read-only", help="Refuse anything that would change the server."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Print the first change instead of sending it."),
+    ] = False,
     version: Annotated[
         bool,
         typer.Option("--version", callback=_show_version, is_eager=True, help="Show the version."),
@@ -126,6 +138,8 @@ def root(
             insecure=insecure,
             config=config,
             yes=yes,
+            read_only=read_only,
+            dry_run=dry_run,
         )
     )
 
@@ -152,6 +166,8 @@ def run(
         command.main(args=args, prog_name=program, standalone_mode=True, obj=context)
     except SystemExit as exit_:
         status = exit_.code
+    except DryRunDone as done:
+        _show_dry_run(context, done)
     except Exception as error:
         status = report(
             error,
@@ -163,6 +179,17 @@ def run(
         if close:
             context.close()
     return _status(status)
+
+
+def _show_dry_run(context: CLIContext, done: DryRunDone) -> None:
+    """The request a dry run stopped at, on stdout; what it means, on stderr."""
+    requests = done.requests[0] if len(done.requests) == 1 else done.requests
+    context.out.file.write(json.dumps(requests, indent=2, ensure_ascii=False) + "\n")
+    if done.uploads:
+        context.renderer.note(
+            f"it would first upload {len(done.uploads)} file(s), {sum(done.uploads)} bytes"
+        )
+    context.renderer.note("dry run: this is the change it would send; nothing was changed")
 
 
 def _program() -> str:

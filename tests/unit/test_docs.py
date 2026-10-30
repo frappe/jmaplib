@@ -62,8 +62,12 @@ _CONSOLE = re.compile(r"^```console\n(.*?)^```", re.DOTALL | re.MULTILINE)
 _ENVIRONMENT = re.compile(r"[A-Z_][A-Z0-9_]*=")
 
 
+#: The guide ``jmap agent-guide`` prints, which ships inside the package.
+AGENT_GUIDE = Path(__file__).parents[2] / "src" / "jmap" / "cli" / "agent_guide.md"
+
+
 def markdown_files() -> list[Path]:
-    return [*sorted(DOCS.glob("*.md")), README]
+    return [*sorted(DOCS.glob("*.md")), README, AGENT_GUIDE]
 
 
 def python_blocks(path: Path) -> Iterator[tuple[int, str]]:

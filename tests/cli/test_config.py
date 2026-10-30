@@ -124,6 +124,19 @@ class TestResolve:
         assert resolved.experimental
         assert resolved.insecure
 
+    def test_read_only_from_any_source_and_never_switched_off(self):
+        def read_only(config: Config, overrides: Overrides, environ: dict[str, str]) -> bool:
+            return resolve_account(config, overrides, environ).read_only
+
+        plain = configured(a=AccountConfig())
+        assert not read_only(plain, Overrides(), {})
+        assert read_only(plain, Overrides(read_only=True), {})
+        assert read_only(plain, Overrides(), {"JMAP_READ_ONLY": "1"})
+        assert read_only(configured(a=AccountConfig(read_only=True)), Overrides(), {})
+        everywhere = Config(defaults=Defaults(read_only=True), accounts={"a": AccountConfig()})
+        assert read_only(everywhere, Overrides(), {"JMAP_READ_ONLY": "0"})
+        assert read_only(Config(defaults=Defaults(read_only=True)), Overrides(), {"JMAP_URL": "u"})
+
     def test_flags_alone_switch_on(self):
         resolved = resolve_account(
             configured(a=AccountConfig()), Overrides(experimental=True, insecure=True), {}

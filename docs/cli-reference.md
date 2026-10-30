@@ -27,6 +27,8 @@ Each command takes these, before or after its own arguments.
 | `--insecure` |  | Do not verify TLS certificates. |
 | `--config` | `TEXT` | Configuration file. |
 | `-y`, `--yes` |  | Answer yes to confirmations. |
+| `--read-only` |  | Refuse anything that would change the server. |
+| `--dry-run` |  | Print the first change instead of sending it. |
 | `--version` |  | Show the version. |
 | `--install-completion` |  | Install completion for the current shell. |
 | `--show-completion` |  | Show completion for the current shell, to copy it or customize the installation. |
@@ -221,6 +223,23 @@ Rename an address book.
 |---|---|
 | `BOOK` | The address book, by name or id. Required. |
 | `NAME` | The new name. Required. |
+
+## jmap agent-guide
+
+```text
+jmap agent-guide [OPTIONS]
+```
+
+Print the guide for AI agents: safe use, searches, output and exit codes.
+
+--install saves it as a Claude Code skill, in ~/.claude/skills/jmap/SKILL.md
+(jmap-cli/ when run as jmap-cli).
+
+| Option | Value | Description |
+|---|---|---|
+| `--install` |  | Save it as a Claude Code skill. |
+| `--skills-dir` | `PATH` | Where to save the skill. Default: `~/.claude/skills`. |
+| `--force` |  | Replace a saved skill. |
 
 ## jmap api
 

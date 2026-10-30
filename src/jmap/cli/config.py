@@ -45,6 +45,8 @@ class Defaults(_Strict):
     pager: Literal["auto", "never"] = "auto"
     editor: str = ""
     timeout: float = 30.0
+    #: Refuse every change on every account; the command line cannot undo it.
+    read_only: bool = False
 
 
 class OAuthSettings(_Strict):
@@ -74,6 +76,8 @@ class AccountConfig(_Strict):
     ca_bundle: str = ""
     insecure: bool = False
     send_move_to_sent: bool = True
+    #: Refuse every change on this account; the command line cannot undo it.
+    read_only: bool = False
     oauth: OAuthSettings = Field(default_factory=OAuthSettings)
 
     @model_validator(mode="before")
@@ -136,6 +140,7 @@ class Overrides:
     account_id: str | None = None
     experimental: bool = False
     insecure: bool = False
+    read_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +160,7 @@ class ResolvedAccount:
     ca_bundle: str = ""
     insecure: bool = False
     send_move_to_sent: bool = True
+    read_only: bool = False
     oauth: OAuthSettings = field(default_factory=OAuthSettings)
     #: Built from the environment rather than read from the file.
     synthetic: bool = field(default=False, compare=False)
@@ -193,6 +199,7 @@ def from_config(name: str, account: AccountConfig, defaults: Defaults) -> Resolv
         ca_bundle=account.ca_bundle,
         insecure=account.insecure,
         send_move_to_sent=account.send_move_to_sent,
+        read_only=account.read_only or defaults.read_only,
         oauth=account.oauth,
     )
 
@@ -207,6 +214,7 @@ def _from_environment(name: str, environ: Mapping[str, str], defaults: Defaults)
         username="",
         account_id="",
         timeout=defaults.timeout,
+        read_only=defaults.read_only,
         synthetic=True,
     )
 
@@ -223,6 +231,10 @@ def _apply(
         or _truthy(environ.get("JMAP_EXPERIMENTAL"))
         or resolved.experimental,
         insecure=overrides.insecure or _truthy(environ.get("JMAP_INSECURE")) or resolved.insecure,
+        # Each source can switch it on; none can switch off what another set.
+        read_only=overrides.read_only
+        or _truthy(environ.get("JMAP_READ_ONLY"))
+        or resolved.read_only,
     )
 
 
