@@ -17,6 +17,7 @@ import typer
 from jmap.cli.commands import cli
 from jmap.cli.commands.mail_columns import COLUMNS, ListingColumns, footer
 from jmap.cli.commands.mail_select import select
+from jmap.cli.completers import MAIL_SORT, comma_list, mailboxes
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import UsageError
 from jmap.cli.ids import Listing, Mailbox
@@ -42,7 +43,13 @@ FlaggedOption = Annotated[bool, typer.Option("--flagged", help="Only flagged mai
 AttachmentOption = Annotated[bool, typer.Option("--attachment", help="Only mail with files.")]
 BeforeOption = Annotated[str | None, typer.Option(help="Received before: 2025-01-31, 7d.")]
 AfterOption = Annotated[str | None, typer.Option(help="Received after: 2025-01-31, today.")]
-SortOption = Annotated[str, typer.Option(help="Comma list: -date, subject, from, size, flagged.")]
+SortOption = Annotated[
+    str,
+    typer.Option(
+        help="Comma list: -date, subject, from, size, flagged.",
+        autocompletion=comma_list(MAIL_SORT, signed=True),
+    ),
+]
 LimitOption = Annotated[int, typer.Option("-n", "--limit", min=0, help="Messages per page.")]
 PageOption = Annotated[int, typer.Option(min=1, help="Which page of --limit messages.")]
 AllOption = Annotated[bool, typer.Option("--all", help="Every match, page after page.")]
@@ -54,7 +61,10 @@ AnchorOption = Annotated[
 OffsetOption = Annotated[
     int, typer.Option(help="Start this many messages after --anchor; negative is before.")
 ]
-ColumnsOption = Annotated[str | None, typer.Option(help=f"Comma list: {', '.join(COLUMNS)}.")]
+ColumnsOption = Annotated[
+    str | None,
+    typer.Option(help=f"Comma list: {', '.join(COLUMNS)}.", autocompletion=comma_list(COLUMNS)),
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +124,10 @@ def list_(
     ctx: typer.Context,
     words: Words = None,
     mailbox: Annotated[
-        str | None, typer.Option("--in", help="Mailbox to list; the inbox by default.")
+        str | None,
+        typer.Option(
+            "--in", help="Mailbox to list; the inbox by default.", autocompletion=mailboxes
+        ),
     ] = None,
     everywhere: Annotated[
         bool, typer.Option("-A", "--all-mailboxes", help="Every mailbox.")

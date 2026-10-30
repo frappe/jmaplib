@@ -17,6 +17,7 @@ from jmap.capabilities.mail import MAIL_URN
 from jmap.cli.commands import cli, report_set
 from jmap.cli.commands.mail import app
 from jmap.cli.commands.mail_select import Selection, select
+from jmap.cli.completers import mailboxes, messages_then_mailbox
 from jmap.cli.connect import find_account
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError, UsageError
@@ -27,7 +28,18 @@ from jmap.core.patch import InvalidKeywordError, keyword_patch, mailbox_patch, p
 Messages = Annotated[
     list[str], typer.Argument(help="Numbers from the last listing (3, 1-5), or ids.")
 ]
-Source = Annotated[str | None, typer.Option("--from", help="The mailbox to take them out of.")]
+#: For move and copy, whose mailbox comes after the messages.
+MessagesThenMailbox = Annotated[
+    list[str],
+    typer.Argument(
+        help="Numbers from the last listing (3, 1-5), or ids.",
+        autocompletion=messages_then_mailbox,
+    ),
+]
+Source = Annotated[
+    str | None,
+    typer.Option("--from", help="The mailbox to take them out of.", autocompletion=mailboxes),
+]
 
 #: Bare names people type for the standard keywords.
 _STANDARD: frozenset[str] = frozenset(
@@ -38,8 +50,8 @@ _STANDARD: frozenset[str] = frozenset(
 @app.command()
 def move(
     ctx: typer.Context,
-    messages: Messages,
-    mailbox: Annotated[str, typer.Argument(help="Where to move them.")],
+    messages: MessagesThenMailbox,
+    mailbox: Annotated[str, typer.Argument(help="Where to move them.", autocompletion=mailboxes)],
     source: Source = None,
 ) -> None:
     """Move messages to a mailbox: jmap move 1-3 Archive/2025."""
@@ -51,8 +63,13 @@ def move(
 @app.command()
 def copy(
     ctx: typer.Context,
-    messages: Messages,
-    mailbox: Annotated[str, typer.Argument(help="Where to add them; with --to-account, there.")],
+    messages: MessagesThenMailbox,
+    mailbox: Annotated[
+        str,
+        typer.Argument(
+            help="Where to add them; with --to-account, there.", autocompletion=mailboxes
+        ),
+    ],
     account: Annotated[
         str | None,
         typer.Option("--to-account", help="Another JMAP account of this session: id or name."),

@@ -7,13 +7,17 @@ from typing import Annotated, Any, cast
 import typer
 
 from jmap.cli.commands import cli
+from jmap.cli.completers import mailboxes
 from jmap.cli.ids import Mailbox, MailboxIndex
 from jmap.cli.output import Column, View, wire_of
 
 app: typer.Typer = typer.Typer(no_args_is_help=True)
 
 MailboxRef = Annotated[
-    str, typer.Argument(help="Role (inbox, sent...), path (Archive/2025), name, or id.")
+    str,
+    typer.Argument(
+        help="Role (inbox, sent...), path (Archive/2025), name, or id.", autocompletion=mailboxes
+    ),
 ]
 
 

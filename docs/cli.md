@@ -453,6 +453,29 @@ line. History is kept in `$XDG_STATE_HOME/jmap/history`. Without
 `prompt_toolkit`, or when lines come from a pipe, the shell reads plain lines,
 so a script can be fed to it: `jmap shell < triage.txt`.
 
+## Tab completion
+
+`jmap completion SHELL` prints the completion script for `bash`, `zsh`, `fish`
+or `powershell`, and `--install` adds it to that shell's startup file. Then Tab
+completes commands and options, and also values: account names after `-a`,
+mailboxes after `--in`, `--from`, `--to` and in `move`, `copy` and `mailbox`
+commands, and the items of `--columns` and `--sort`.
+
+```console
+$ jmap completion zsh --install
+$ jmap ls --in Arch⇥
+$ jmap move 3 Arch⇥
+```
+
+Or put it in the startup file yourself: `eval "$(jmap completion zsh)"` in
+`~/.zshrc` (`bash` in `~/.bashrc`), or for fish
+`jmap completion fish > ~/.config/fish/completions/jmap.fish`. Run it as
+`jmap-cli` and the script completes `jmap-cli`.
+
+Mailbox names come from the server. If it does not answer within three seconds,
+or needs a password the keyring does not have, Tab offers the roles alone
+(`inbox`, `sent`, `archive` and so on): completion never asks you anything.
+
 ## Two kinds of account
 
 A **named account** is one server and one credential. You can have any number;
@@ -713,7 +736,7 @@ The [command reference](cli-reference.md) gives every argument and option.
 | `jmap push list/add/verify/renew/remove/keys/decode` | Push subscriptions to a URL of yours. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
-| `jmap --install-completion` | Tab completion for your shell (bash, zsh, fish, PowerShell). |
+| `jmap completion SHELL [--install]` | Tab completion for bash, zsh, fish or PowerShell. |
 
 A `MAILBOX` is a role (`inbox`, `sent`, `archive`), a path (`Archive/2025`), a
 unique name, or an id. Roles are tried before names, because names are

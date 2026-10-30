@@ -26,6 +26,7 @@ def register(app: typer.Typer) -> None:
         api,
         attachment,
         calendar,
+        completion_cmd,
         compose,
         config_cmd,
         contact,
@@ -79,6 +80,7 @@ def register(app: typer.Typer) -> None:
     app.command("freebusy")(freebusy.freebusy)
     app.add_typer(file.app, name="file", help="Files stored on the server (experimental).")
     app.command("shell")(shell_cmd.shell)
+    app.command("completion")(completion_cmd.completion)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
     _aliases(app, mail.app)

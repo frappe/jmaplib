@@ -10,12 +10,14 @@ from __future__ import annotations
 import os
 import re
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Final
 
 import typer
 
 from jmap.__about__ import __version__
 from jmap.cli.commands import register
+from jmap.cli.completers import accounts
 from jmap.cli.context import CLIContext, GlobalFlags
 from jmap.cli.errors import ExitCode, report
 from jmap.cli.output import ColorMode, OutputFormat
@@ -45,6 +47,8 @@ FLAG_OPTIONS: Final = frozenset(
 )
 #: No command may define an option with one of these names.
 RESERVED: Final = VALUE_OPTIONS | FLAG_OPTIONS
+#: The names the command is installed under (``pyproject.toml``'s scripts).
+PROGRAMS: Final = frozenset({"jmap", "jmap-cli"})
 
 _VERBOSE: Final = re.compile(r"-v+")
 
@@ -69,7 +73,8 @@ def _show_version(value: bool) -> None:
 def root(
     ctx: typer.Context,
     account: Annotated[
-        str | None, typer.Option("-a", "--account", help="Named account to use.")
+        str | None,
+        typer.Option("-a", "--account", help="Named account to use.", autocompletion=accounts),
     ] = None,
     account_id: Annotated[
         str | None,
@@ -142,8 +147,9 @@ def run(
     args = hoist_globals(sys.argv[1:] if argv is None else argv)
     command = typer.main.get_command(app)
     status: object = ExitCode.OK
+    program = _program() if argv is None else "jmap"
     try:
-        command.main(args=args, prog_name="jmap", standalone_mode=True, obj=context)
+        command.main(args=args, prog_name=program, standalone_mode=True, obj=context)
     except SystemExit as exit_:
         status = exit_.code
     except Exception as error:
@@ -157,6 +163,12 @@ def run(
         if close:
             context.close()
     return _status(status)
+
+
+def _program() -> str:
+    """The name the command was run as, which Tab completion is registered under."""
+    name = Path(sys.argv[0]).stem
+    return name if name in PROGRAMS else "jmap"
 
 
 def hoist_globals(argv: Sequence[str]) -> list[str]:

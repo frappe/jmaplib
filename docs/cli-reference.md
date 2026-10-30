@@ -463,6 +463,26 @@ List the ids created, updated and destroyed since a state.
 | `--max` | `N` | At most this many ids per page. |
 | `--fetch` |  | Also get the created and updated objects. |
 
+## jmap completion
+
+```text
+jmap completion [OPTIONS] SHELL
+```
+
+Print the Tab completion script for your shell, or --install it.
+
+For zsh, add eval "$(jmap completion zsh)" to ~/.zshrc; for bash, the same
+in ~/.bashrc; for fish, save it as ~/.config/fish/completions/jmap.fish.
+--install does that for you. Open a new shell afterwards.
+
+| Argument | Description |
+|---|---|
+| `SHELL` | Your shell. Required. |
+
+| Option | Value | Description |
+|---|---|---|
+| `--install` |  | Add it to the shell's startup file. |
+
 ## jmap compose
 
 ```text

@@ -12,6 +12,7 @@ from jmap.cli.commands import cli, report_set
 from jmap.cli.commands.mail import app
 from jmap.cli.commands.mail_select import select
 from jmap.cli.commands.mail_triage import keyword_name
+from jmap.cli.completers import mailboxes
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import PartialFailureError, UsageError
 from jmap.cli.files import safe_name, target_path, write_file
@@ -22,7 +23,9 @@ from jmap.cli.output import wire_of
 def import_(
     ctx: typer.Context,
     source: Annotated[str, typer.Argument(help="A message file (.eml), or - for stdin.")],
-    mailbox_ref: Annotated[str, typer.Option("--to", help="The mailbox to put it in.")] = "inbox",
+    mailbox_ref: Annotated[
+        str, typer.Option("--to", help="The mailbox to put it in.", autocompletion=mailboxes)
+    ] = "inbox",
     keyword: Annotated[list[str] | None, typer.Option(help="Keyword to set (repeatable).")] = None,
     seen: Annotated[bool, typer.Option("--seen", help="Mark it read.")] = False,
     received_at: Annotated[

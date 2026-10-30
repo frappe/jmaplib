@@ -15,6 +15,7 @@ import typer
 from jmap.auth import BearerAuth
 from jmap.cli.auth import make_auth
 from jmap.cli.commands import cli
+from jmap.cli.completers import accounts
 from jmap.cli.config import AccountConfig, AuthKind, OAuthSettings, ResolvedAccount, from_config
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import AuthError, NotFoundError, UsageError
@@ -26,8 +27,10 @@ from jmap.client import JMAPClient
 app: typer.Typer = typer.Typer(no_args_is_help=True)
 
 Name = Annotated[str, typer.Argument(help="The named account.")]
+Existing = Annotated[str, typer.Argument(help="The named account.", autocompletion=accounts)]
 OptionalName = Annotated[
-    str | None, typer.Argument(help="The named account; the current one if omitted.")
+    str | None,
+    typer.Argument(help="The named account; the current one if omitted.", autocompletion=accounts),
 ]
 PasswordStdin = Annotated[
     bool, typer.Option("--password-stdin", help="Read the password from stdin.")
@@ -175,7 +178,7 @@ def show(ctx: typer.Context, name: OptionalName = None) -> None:
 
 
 @app.command()
-def remove(ctx: typer.Context, name: Name) -> None:
+def remove(ctx: typer.Context, name: Existing) -> None:
     """Remove a named account and its stored secrets."""
     context = cli(ctx)
     config = context.config
@@ -195,7 +198,7 @@ def remove(ctx: typer.Context, name: Name) -> None:
 
 
 @app.command("set-default")
-def set_default(ctx: typer.Context, name: Name) -> None:
+def set_default(ctx: typer.Context, name: Existing) -> None:
     """Make a named account the one used when -a is not given."""
     context = cli(ctx)
     config = context.config
