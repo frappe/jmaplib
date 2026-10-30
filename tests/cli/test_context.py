@@ -50,6 +50,12 @@ class TestConfigure:
         context.configure(GlobalFlags())
         assert context.out.no_color
 
+    def test_stderr_lines_never_wrap(self, make_context):
+        context = make_context()
+        context.configure(GlobalFlags())
+        context.err.print("x" * 500)
+        assert context.err.file.getvalue() == "x" * 500 + "\n"
+
     def test_no_keyring_keeps_secrets_in_memory(self, make_context):
         context = make_context()
         context.secrets.set("x", "password", "kept")

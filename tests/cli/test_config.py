@@ -160,6 +160,8 @@ class TestResolve:
         assert caught.value.hint is not None
         assert "set-default" in caught.value.hint
 
-    def test_nothing_configured(self):
-        with pytest.raises(ConfigError, match="no account is configured"):
+    def test_nothing_configured_names_a_command_that_works(self):
+        with pytest.raises(ConfigError, match="no account is configured") as caught:
             resolve_account(Config(), Overrides(), {})
+        assert caught.value.hint is not None
+        assert "--username ADDRESS" in caught.value.hint

@@ -227,7 +227,8 @@ def _no_account(name: str | None, config: Config) -> ConfigError:
         )
     return ConfigError(
         "no account is configured",
-        hint="run 'jmap account add NAME --url URL', or set JMAP_URL",
+        hint="run 'jmap account add NAME --url URL --username ADDRESS', "
+        "or set JMAP_URL and JMAP_USER",
     )
 
 

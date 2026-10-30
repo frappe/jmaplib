@@ -105,7 +105,7 @@ class CLIContext:
         self.registry = registry or default_registry()
         self.flags = GlobalFlags()
         self.out = self._console(stdout, "auto")
-        self.err = self._console(stderr, "auto")
+        self.err = self._console(stderr, "auto", lines=True)
         self.prompter = prompter or TerminalPrompter(self.err, stdin)
         self.options = OutputOptions()
         self.stdin_secret = None
@@ -126,7 +126,7 @@ class CLIContext:
         defaults = self._config_or_defaults().defaults
         color = flags.color or defaults.color
         self.out = self._console(self._stdout, color)
-        self.err = self._console(self._stderr, color)
+        self.err = self._console(self._stderr, color, lines=True)
         if flags.no_keyring:
             self.secrets = MemoryStore()
         self.options = OutputOptions(
@@ -256,7 +256,8 @@ class CLIContext:
             self._log_handler = None
 
     # -- helpers ------------------------------------------------------------ #
-    def _console(self, file: TextIO, color: str) -> Console:
+    def _console(self, file: TextIO, color: str, *, lines: bool = False) -> Console:
+        """A console; ``lines`` for stderr, whose messages must never wrap mid-command."""
         no_color = color == "never" or (color == "auto" and "NO_COLOR" in self.environ)
         return Console(
             file=file,
@@ -264,6 +265,7 @@ class CLIContext:
             no_color=no_color,
             width=self._width,
             highlight=False,
+            soft_wrap=lines,
         )
 
     def _config_or_defaults(self) -> Config:
