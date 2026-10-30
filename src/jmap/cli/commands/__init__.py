@@ -61,12 +61,15 @@ def register(app: typer.Typer) -> None:
 
 
 def _server_tools(app: typer.Typer) -> None:
-    """Blobs, filters and quotas."""
-    from jmap.cli.commands import blob, quota, sieve
+    """Blobs, filters, quotas, changes and push."""
+    from jmap.cli.commands import blob, changes, push, quota, sieve, watch
 
     app.add_typer(blob.app, name="blob", help="Upload, download and look up blobs.")
     app.add_typer(sieve.app, name="sieve", help="Server-side mail filters (Sieve).")
     app.add_typer(quota.app, name="quota", help="How much of each limit is used.")
+    app.add_typer(push.app, name="push", help="Push subscriptions to a URL of yours.")
+    app.command("changes", rich_help_panel="Server")(changes.changes)
+    app.command("watch", rich_help_panel="Server")(watch.watch)
 
 
 #: The daily verbs, also at the top level: ``jmap ls`` is ``jmap mail list``.

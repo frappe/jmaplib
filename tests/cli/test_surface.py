@@ -50,7 +50,7 @@ SURFACE = {
         "export",
     },
     "server": {"session", "capabilities", "conformance", "echo", "refresh"},
-    "api": {"call"},
+    "api": {"call", "batch"},
     "config": {"path", "edit", "set"},
     "draft": {"list", "new", "edit", "send", "delete"},
     "attachment": {"list", "download"},
@@ -60,6 +60,7 @@ SURFACE = {
     "blob": {"upload", "download", "info", "lookup", "copy"},
     "sieve": {"list", "get", "put", "validate", "activate", "deactivate", "delete"},
     "quota": {"list", "show"},
+    "push": {"list", "add", "verify", "renew", "remove", "keys", "decode"},
 }
 
 
@@ -105,6 +106,7 @@ def test_every_shortcut_exists_and_is_the_same_command():
 
 def test_the_top_level_verbs_exist():
     assert {"shell", "compose", "send", "reply", "forward"} <= set(tree().commands)
+    assert {"changes", "watch"} <= set(tree().commands)
 
 
 def test_every_noun_and_verb_exists():
