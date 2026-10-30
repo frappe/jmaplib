@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Final
 
 import typer
 
-from jmap.cli.commands import cli, report_set
+from jmap.cli.commands import cli, raise_first, report_set
 from jmap.cli.commands.addressbook import all_books, book_for, find_book
 from jmap.cli.commands.cards import (
     COLUMNS,
@@ -89,6 +89,7 @@ def list_(
     with client.batch() as batch:
         found = batch.add(kind.method("query"), query)
         cards = batch.add(kind.method("get"), {"ids": found.ref_ids()})
+    raise_first(found, cards)
     by_id = {card["id"]: card for card in wire_of(cards.result)["list"]}
     rows = [by_id[card_id] for card_id in found.result.ids if card_id in by_id]
     total = found.result.total

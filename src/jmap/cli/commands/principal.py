@@ -9,7 +9,7 @@ import typer
 
 from jmap import sharing
 from jmap.capabilities.principals import PRINCIPALS_URN
-from jmap.cli.commands import cli
+from jmap.cli.commands import cli, raise_first
 from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.output import Column, View, wire_of
 from jmap.core.ids import Id
@@ -51,6 +51,7 @@ def list_(
         query = {"filter": condition} if condition else {}
         found = batch.add("Principal/query", query, account_id=account)
         principals = batch.add("Principal/get", {"ids": found.ref_ids()}, account_id=account)
+    raise_first(found, principals)
     context.renderer.render(View(wire_of(principals.result)["list"], _COLUMNS))
 
 
@@ -119,6 +120,8 @@ class Lookup:
     reference: str
     by_id: Handle[Any] | None
     by_text: Handle[Any] | None
+    #: The query ``by_text`` reads, whose own error is the one worth showing.
+    query: Handle[Any] | None = None
 
     @classmethod
     def queue(
@@ -132,11 +135,12 @@ class Lookup:
         condition = {"email": reference} if "@" in reference else {"text": reference}
         found = batch.add("Principal/query", {"filter": condition}, account_id=account)
         by_text = batch.add("Principal/get", {"ids": found.ref_ids()}, account_id=account)
-        return cls(reference, by_id, by_text)
+        return cls(reference, by_id, by_text, found)
 
     def result(self) -> dict[str, Any]:
         if self.by_id is None or self.by_text is None:
             return {"id": self.reference}
+        raise_first(self.by_id, *([self.query] if self.query else []), self.by_text)
         exact: list[dict[str, Any]] = wire_of(self.by_id.result)["list"]
         if exact:
             return exact[0]

@@ -195,7 +195,8 @@ def _set(
     client = context.require("FileNode/set")
     with client.batch() as batch:
         handle = batch.add("FileNode/set", arguments)
-    report_set(context, handle.result, done)
+    hints = {} if replace else {"alreadyExists": "pass --replace to put it in place of that one"}
+    report_set(context, handle.result, done, hints=hints)
 
 
 def _columns(name: Callable[[Mapping[str, Any]], str]) -> list[Column]:

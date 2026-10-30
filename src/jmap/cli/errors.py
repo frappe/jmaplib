@@ -18,6 +18,10 @@ from jmap.auth import OAuthError
 from jmap.batch import NoAccountError, ReadOnlyAccountError
 from jmap.capabilities.registry import UnsupportedMethodError
 from jmap.core.errors import (
+    URN_LIMIT,
+    URN_NOT_JSON,
+    URN_NOT_REQUEST,
+    URN_UNKNOWN_CAPABILITY,
     AuthenticationError,
     BatchTooLargeError,
     CapabilityFieldError,
@@ -28,6 +32,7 @@ from jmap.core.errors import (
     TransportError,
 )
 from jmap.core.ids import InvalidIdError
+from jmap.core.ijson import IJSONError
 from jmap.core.patch import InvalidKeywordError, InvalidPatchError
 from jmap.core.session import InsecureEndpointError, MalformedSessionError
 from jmap.discovery import DiscoveryUnavailableError, UnconfirmedSRVTargetError
@@ -124,12 +129,20 @@ _CODES: Final[tuple[tuple[tuple[type[BaseException], ...], ExitCode], ...]] = (
         ),
         ExitCode.CONNECTION,
     ),
-    ((RequestError,), ExitCode.REQUEST),
+    ((RequestError, IJSONError), ExitCode.REQUEST),
     ((MethodError,), ExitCode.METHOD),
     ((CapabilityNotSupportedError, UnsupportedMethodError), ExitCode.UNSUPPORTED),
     ((ResyncRequiredError,), ExitCode.CONFIG),
     ((KeyboardInterrupt,), ExitCode.INTERRUPTED),
 )
+
+#: The RFC 8620 problem types in words, for a server whose detail says nothing useful.
+_PROBLEMS: Final = {
+    URN_NOT_REQUEST: "the server could not read the request",
+    URN_NOT_JSON: "the server did not accept the request as JSON",
+    URN_UNKNOWN_CAPABILITY: "the server does not know a capability the request uses",
+    URN_LIMIT: "the request is over one of the server's limits",
+}
 
 #: What the client's namespaces raise for a capability the server lacks.
 _NOT_OFFERED: Final = "this server does not offer"
@@ -168,6 +181,11 @@ def _message(error: BaseException, code: ExitCode) -> str:
         return "interrupted"
     if isinstance(error, ValidationError):
         return _validation_message(error)
+    if isinstance(error, RequestError) and _echoes_request(error.detail):
+        head = error.title or _PROBLEMS.get(error.type, error.type)
+        return f"{head} [{error.type}; HTTP {error.status}]"
+    if isinstance(error, IJSONError):
+        return f"the server's answer is not valid JSON: {error}"
     text = str(error) or type(error).__name__
     if code is ExitCode.FAILURE and not isinstance(error, CLIError):
         return f"{type(error).__name__}: {text} (run with -v for the traceback)"
@@ -188,7 +206,20 @@ def _hint(error: BaseException) -> str | None:
         return f"if you trust it, add the account again with {hosts}"
     if isinstance(error, AuthenticationError):
         return "check the credential with 'jmap account login NAME'"
+    if isinstance(error, RequestError) and error.type == URN_NOT_REQUEST:
+        return "an argument may have a value the server cannot read, such as a state or an id"
+    if isinstance(error, IJSONError):
+        return "this is a fault in the server; -v shows where it was found"
     return None
+
+
+def _echoes_request(detail: str | None) -> bool:
+    """Whether ``detail`` is only the request sent back, as Stalwart's is."""
+    try:
+        echoed = json.loads(detail or "")
+    except ValueError:
+        return False
+    return isinstance(echoed, dict) and "methodCalls" in echoed
 
 
 def _details(error: BaseException) -> list[str]:

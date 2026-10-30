@@ -6,7 +6,7 @@ from typing import Annotated, Any
 
 import typer
 
-from jmap.cli.commands import cli, report_set
+from jmap.cli.commands import cli, raise_first, report_set
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError
 from jmap.cli.output import Column, View, wire_of
@@ -35,6 +35,7 @@ def list_(
             "Email/get",
             {"ids": submissions.ref_list("emailId"), "properties": ["subject", "to"]},
         )
+    raise_first(found, submissions, emails)
     _render(context, wire_of(submissions.result)["list"], wire_of(emails.result)["list"])
 
 

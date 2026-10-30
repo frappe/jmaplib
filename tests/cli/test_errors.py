@@ -32,6 +32,7 @@ from jmap.core.errors import (
     TransportError,
 )
 from jmap.core.ids import InvalidIdError
+from jmap.core.ijson import DuplicateKeyError
 from jmap.discovery import SRVTarget, UnconfirmedSRVTargetError
 from jmap.sync.changes import ResyncRequiredError
 
@@ -113,6 +114,31 @@ class TestReport:
         lines = reported(UnconfirmedSRVTargetError("example.com", (target,)))
         assert "--trust-srv mail.other.net" in lines[-1]
         assert "jmap account login" in reported(AuthenticationError("no"))[-1]
+
+    def test_a_request_echoed_as_the_detail_is_not_shown(self):
+        echo = '{"using": [], "methodCalls": [["Mailbox/changes", {}, "c1"]]}'
+        problem = RequestError("urn:ietf:params:jmap:error:notRequest", status=400, detail=echo)
+        assert reported(problem) == [
+            "jmap: the server could not read the request "
+            "[urn:ietf:params:jmap:error:notRequest; HTTP 400]",
+            "hint: an argument may have a value the server cannot read, such as a state or an id",
+        ]
+        titled = RequestError("about:blank", status=400, title="Bad", detail=echo)
+        assert reported(titled) == ["jmap: Bad [about:blank; HTTP 400]"]
+        unknown = RequestError("urn:x", status=400, detail=echo)
+        assert reported(unknown) == ["jmap: urn:x [urn:x; HTTP 400]"]
+
+    @pytest.mark.parametrize("detail", ["Bad state", "[1]", None])
+    def test_any_other_detail_is_shown(self, detail):
+        problem = RequestError("urn:ietf:params:jmap:error:notRequest", status=400, detail=detail)
+        assert "the server could not read" not in reported(problem)[0]
+
+    def test_invalid_json_from_the_server(self):
+        assert reported(DuplicateKeyError("name")) == [
+            "jmap: the server's answer is not valid JSON: duplicate object key 'name'",
+            "hint: this is a fault in the server; -v shows where it was found",
+        ]
+        assert exit_code_for(DuplicateKeyError("name")) is ExitCode.REQUEST
 
     def test_verbose_adds_problem_fields_and_the_traceback(self):
         problem = RequestError("urn:ietf:params:jmap:error:limit", status=400, limit="maxCalls")

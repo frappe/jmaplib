@@ -131,6 +131,7 @@ class TestUpload:
         result = invoke("file", "upload", str(local), "/Projects/notes.txt")
         assert result.code == 8
         assert "alreadyExists" in result.err
+        assert "hint: pass --replace to put it in place of that one" in result.err
 
     def test_replace(self, invoke, files, local):
         result = invoke("file", "upload", str(local), "/Projects/notes.txt", "--replace")

@@ -230,7 +230,11 @@ class TestUpdate:
         occurrence = "e2.2026-11-03T10:00:00"
         result = invoke("event", "update", occurrence, "--this-occurrence", "--title", "Late")
         assert result.code == 0, result.err
-        assert cal.events["e2"]["recurrenceOverrides"] == {"2026-11-03T10:00:00": {"title": "Late"}}
+        assert "updated the occurrence 2026-11-03T10:00:00 of" in result.err
+        # The series' duration goes with it: Stalwart would otherwise make it one day long.
+        assert cal.events["e2"]["recurrenceOverrides"] == {
+            "2026-11-03T10:00:00": {"duration": "PT1H", "title": "Late"}
+        }
         result = invoke(
             "event", "update", occurrence, "--this-occurrence", "--start", "2026-11-03T11:00"
         )
@@ -238,6 +242,7 @@ class TestUpdate:
         assert cal.last_set["update"] == {
             "e2": {
                 "recurrenceOverrides/2026-11-03T10:00:00": {
+                    "duration": "PT1H",
                     "title": "Late",
                     "start": "2026-11-03T11:00:00",
                 }

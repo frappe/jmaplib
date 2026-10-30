@@ -12,7 +12,7 @@ from typing import Annotated, Any, Final
 import typer
 
 from jmap.capabilities.calendars import CALENDARS_URN, CalendarsCapability, duration_seconds
-from jmap.cli.commands import cli, report_set
+from jmap.cli.commands import cli, raise_first, report_set
 from jmap.cli.commands import event_view as view
 from jmap.cli.commands.calendar import calendar_names, find_calendar, load_calendars
 from jmap.cli.commands.calendar_time import Zone, human_duration, split, window
@@ -82,10 +82,12 @@ def list_(
     with client.batch() as batch:
         if known is None:
             names_of = batch.add("Calendar/get", {"ids": None, "properties": ["id", "name"]})
-        handles = [
+        windows = [
             _queue_window(batch, condition, span, zone, expand=not no_expand)
             for span in split(begins, ends, bound)
         ]
+    raise_first(*(handle for window in windows for handle in window))
+    handles = [got for _, got in windows]
     listed = wire_of(names_of.result)["list"] if names_of is not None else known or []
     names = calendar_names(listed)
     context.renderer.render(
@@ -161,6 +163,7 @@ def notifications(
             handle = batch.add(f"{name}/set", {"destroy": found.ref_ids()})
         else:
             handle = batch.add(f"{name}/get", {"ids": found.ref_ids()})
+    raise_first(found, handle)
     if clear:
         report_set(context, handle.result, "cleared {n} notification(s)")
         return
@@ -215,10 +218,14 @@ def override(
     """
     base = str(occurrence["baseEventId"])
     key = check_recurrence_id(str(occurrence.get("recurrenceId")))
-    overrides = fetch_event(context, base, ["id", "recurrenceOverrides"]).get("recurrenceOverrides")
+    series = fetch_event(context, base, ["id", "recurrenceOverrides", "duration"])
+    overrides = series.get("recurrenceOverrides")
+    merged = {**view.as_map(view.as_map(overrides).get(key)), **changes}
+    if "duration" in series and not merged.get("excluded"):
+        # Inherited anyway, by RFC 8984; Stalwart instead gives the occurrence one day.
+        merged = {"duration": series["duration"], **merged}
     if overrides is None:
-        return {"update": {base: {"recurrenceOverrides": {key: changes}}}}
-    merged = {**view.as_map(overrides.get(key)), **changes}
+        return {"update": {base: {"recurrenceOverrides": {key: merged}}}}
     return {"update": {base: {f"recurrenceOverrides/{key}": merged}}}
 
 
@@ -239,7 +246,7 @@ def _queue_window(
     zone: Zone,
     *,
     expand: bool,
-) -> Handle[Any]:
+) -> tuple[Handle[Any], Handle[Any]]:
     """Queue the query for one window and the ``/get`` of what it finds."""
     after, before = span
     window_condition = {
@@ -251,7 +258,7 @@ def _queue_window(
         "CalendarEvent/query",
         {"filter": window_condition, "expandRecurrences": expand, "timeZone": zone.name},
     )
-    return batch.add(
+    return found, batch.add(
         "CalendarEvent/get",
         {"ids": found.ref_ids(), "properties": _LIST_PROPERTIES, "timeZone": zone.name},
     )

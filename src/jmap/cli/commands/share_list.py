@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from jmap import sharing
-from jmap.cli.commands import cli, report_set
+from jmap.cli.commands import cli, raise_first, report_set
 from jmap.cli.commands.principal import labels
 from jmap.cli.commands.share import Accounts, Target, app
 from jmap.cli.errors import NotFoundError
@@ -68,6 +68,7 @@ def notifications(
             "ShareNotification/query", {"sort": [{"property": "created", "isAscending": False}]}
         )
         notes = batch.add("ShareNotification/get", {"ids": found.ref_ids()})
+    raise_first(found, notes)
     columns = [
         Column("CREATED", "created"),
         Column("BY", "changedBy", lambda i: _by(i.get("changedBy"))),
@@ -84,6 +85,7 @@ def _clear(context: CLIContext) -> None:
     with client.batch() as batch:
         found = batch.add("ShareNotification/query", {})
         handle = batch.add("ShareNotification/set", {"destroy": found.ref_ids()})
+    raise_first(found, handle)
     report_set(context, handle.result, "deleted {n} notification(s)")
 
 

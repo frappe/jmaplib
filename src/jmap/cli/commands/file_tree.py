@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Final
 
+from jmap.cli.commands import raise_first
 from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.output import wire_of
 from jmap.models.files import NODE_DIRECTORY, infer_node_type
@@ -96,6 +97,7 @@ class FileTree:
         with client.batch() as batch:
             found = batch.add("FileNode/query", {"filter": wanted} if wanted else {})
             handle = batch.add("FileNode/get", {"ids": found.ref_ids(), "properties": PROPERTIES})
+        raise_first(found, handle)
         nodes: list[Node] = wire_of(handle.result)["list"]
         return [node for node in nodes if node.get("parentId") is None] if top else nodes
 

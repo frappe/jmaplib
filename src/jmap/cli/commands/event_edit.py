@@ -181,7 +181,10 @@ def update(
         arguments = {"update": {found["id"]: patch}}
     if send_invites:
         arguments["sendSchedulingMessages"] = True
-    set_event(context, arguments, f"updated {found.get('title') or found['id']}")
+    title = found.get("title") or found["id"]
+    # The date, because a server may renumber occurrences after any change.
+    which = f"the occurrence {found.get('recurrenceId')} of " if this_occurrence else ""
+    set_event(context, arguments, f"updated {which}{title}")
 
 
 def _length(begins: datetime, length: str | None, end: str | None, *, all_day: bool) -> str:

@@ -10,11 +10,12 @@ from jmap.cli.errors import PartialFailureError, UsageError
 from jmap.cli.output import wire_of
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     import typer
 
     from jmap.cli.context import CLIContext
+    from jmap.core.invocation import Handle
 
 
 def register(app: typer.Typer) -> None:
@@ -146,15 +147,28 @@ def json_argument(text: str | None, context: CLIContext) -> dict[str, Any]:
     return cast("dict[str, Any]", value)
 
 
+def raise_first(*handles: Handle[Any]) -> None:
+    """Raise the error of the first call that failed, reading the calls in order.
+
+    A ``/get`` fed by a failed ``/query`` fails with ``invalidResultReference``,
+    which hides why the query failed, such as a sort the server does not offer.
+    """
+    for handle in handles:
+        _ = handle.result
+
+
 def comma_list(values: list[str] | None) -> list[str]:
     """A repeatable option's values, each of which may also be a comma-separated list."""
     return [part.strip() for value in values or [] for part in value.split(",") if part.strip()]
 
 
-def report_set(context: CLIContext, result: Any, done: str) -> None:
+def report_set(
+    context: CLIContext, result: Any, done: str, *, hints: Mapping[str, str] | None = None
+) -> None:
     """Say what a ``/set`` changed, and raise for anything it refused.
 
-    ``done`` names the change, as in ``"moved {n} message(s)"``. JSON mode
+    ``done`` names the change, as in ``"moved {n} message(s)"``. ``hints`` maps
+    a SetError type to what the person can do about it. JSON mode
     prints the response itself. Refusals end the run with exit 8 after the
     successes are reported.
     """
@@ -177,4 +191,6 @@ def report_set(context: CLIContext, result: Any, done: str) -> None:
             + (f" ({error['description']})" if error.get("description") else "")
             for key, error in refused.items()
         )
-        raise PartialFailureError(f"{len(refused)} not changed: {reasons}")
+        found = [(hints or {}).get(str(error.get("type"))) for error in refused.values()]
+        hint = next((text for text in found if text), None)
+        raise PartialFailureError(f"{len(refused)} not changed: {reasons}", hint=hint)

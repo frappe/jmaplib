@@ -104,6 +104,13 @@ class TestList:
         ]
         assert "2 of 2 contact(s)" in result.err
 
+    def test_a_refused_query_shows_its_own_error(self, invoke, contacts, server):
+        server.fail("ContactCard/query", "unsupportedSort")
+        result = invoke("contact", "list", "--sort", "surname")
+        assert result.code == 6
+        assert "unsupportedSort" in result.err
+        assert "invalidResultReference" not in result.err
+
     def test_numbers_in_one_shell(self, make_context, contacts):
         from jmap.cli.shell import Shell
 
