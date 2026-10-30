@@ -10,6 +10,7 @@ import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -149,6 +150,11 @@ def human_duration(value: str | None) -> str:
 
 
 def _machine_zone() -> str:
-    """The zone ``/etc/localtime`` links to, or UTC when it names none."""
-    _, found, name = os.path.realpath(LOCALTIME).partition("zoneinfo/")
-    return name if found and name else "Etc/UTC"
+    """The zone ``/etc/localtime`` links to, or UTC when it names none.
+
+    By path parts, not text: the separator is ``\\`` on Windows.
+    """
+    parts = Path(os.path.realpath(LOCALTIME)).parts
+    if "zoneinfo" not in parts:
+        return "Etc/UTC"
+    return "/".join(parts[parts.index("zoneinfo") + 1 :]) or "Etc/UTC"

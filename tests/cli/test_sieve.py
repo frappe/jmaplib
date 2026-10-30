@@ -29,7 +29,7 @@ def sieve(server: FakeJMAPServer, account: str) -> SieveStore:
 @pytest.fixture
 def script(tmp_path: Path) -> Path:
     path = tmp_path / "filters.sieve"
-    path.write_text(SCRIPT, encoding="utf-8")
+    path.write_bytes(SCRIPT.encode())  # not write_text: Windows would add \r to each line
     return path
 
 
