@@ -29,6 +29,7 @@ def register(app: typer.Typer) -> None:
         draft,
         event,
         event_edit,
+        file,
         freebusy,
         identity,
         mail,
@@ -60,6 +61,7 @@ def register(app: typer.Typer) -> None:
     app.add_typer(calendar.app, name="calendar", help="Calendars (experimental).")
     app.add_typer(event.app, name="event", help="Calendar events (experimental).")
     app.command("freebusy")(freebusy.freebusy)
+    app.add_typer(file.app, name="file", help="Files stored on the server (experimental).")
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)

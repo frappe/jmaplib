@@ -59,6 +59,7 @@ SURFACE = {
     "vacation": {"show", "set", "enable", "disable"},
     "calendar": {"list", "create", "rename", "delete"},
     "event": {"list", "show", "create", "import", "update", "delete", "notifications"},
+    "file": {"ls", "tree", "upload", "download", "mkdir", "rm", "mv"},
 }
 
 
