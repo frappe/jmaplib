@@ -47,6 +47,7 @@ a live Stalwart server on every push.
 - [Common tasks](#common-tasks)
 - [Handling errors](#handling-errors)
 - [Configuration](#configuration)
+- [Command line](#command-line)
 - [Testing your code](#testing-your-code)
 - [Supported specifications](#supported-specifications)
 - [How it works](#how-it-works)
@@ -69,7 +70,7 @@ Optional extras - you need none of them for mail:
 | `jmaplib[discovery]` | `dnspython` | You want `JMAPClient.discover()` to look up SRV records. Without it, discovery tries only `https://<domain>/.well-known/jmap`. |
 | `jmaplib[ws]` | `httpx-ws` | You speak JMAP over WebSocket (RFC 8887): `jmap.push.WebSocketClient` and its async twin send batches and receive push over one connection. |
 | `jmaplib[push]` | `cryptography` | Your push endpoint receives encrypted payloads: `jmap.push.PushKeyPair` makes the keys and decrypts them (RFC 8291). |
-| `jmaplib[cli]` | `typer`, `rich` | Nothing yet - it is reserved for command-line tools. The conformance report below needs only the standard library. |
+| `jmaplib[cli]` | `typer`, `rich`, `keyring`, `prompt_toolkit`, `tomli-w`, `markdown-it-py` | You want the `jmap` command. See [Command line](#command-line). |
 
 ## Quick start
 
@@ -602,6 +603,29 @@ client = JMAPClient.connect(
 | `experimental` | `False` | Enable capabilities that track Internet-Drafts. |
 | `registry` | all built in | Your own capability registry, to add or remove support. |
 
+## Command line
+
+`pip install 'jmaplib[cli]'` adds a `jmap` command built on the library. It is
+also installed as `jmap-cli`, because macOS has a Java tool at `/usr/bin/jmap`:
+
+```console
+$ jmap account add work --url https://mail.example.com/.well-known/jmap \
+    --username alice@example.com
+$ jmap ls
+$ jmap read 2
+$ jmap search 'from:bob is:unread after:7d'
+$ jmap archive 1-2
+$ jmap reply 2 --all
+$ jmap send --to bob@example.com --subject Lunch --body "One o'clock?"
+$ jmap ls --json | jq -r '.[].subject'
+```
+
+Passwords and OAuth tokens go to the OS keyring, never onto the command line.
+Listings are numbered, and `read 2` means row 2 of the last one. `jmap shell`
+keeps one connection open, with `cd`, history and Tab completion. `--json`
+prints the server's own objects, and the exit code says what kind of failure
+happened. See [Command line](docs/cli.md).
+
 ## Testing your code
 
 `FakeJMAPServer` is an in-process JMAP server - no network, no container. It
@@ -652,7 +676,9 @@ python -m jmap.testing.conformance https://mail.example.com/.well-known/jmap \
     --user alice@example.com --markdown
 ```
 
-It asks for the password, or reads `$JMAP_PASSWORD`.
+It asks for the password, or reads `$JMAP_PASSWORD`. With the `cli` extra,
+`jmap server conformance --markdown` prints the same report for a configured
+account.
 
 ## Supported specifications
 
@@ -727,10 +753,11 @@ Task-oriented guides live in [`docs/`](docs/index.md):
 | [Errors](docs/errors.md) | Four failure levels, and which are safe to retry |
 | [Other capabilities](docs/extensions.md) | Quota, Sieve, contacts, calendars, files, sharing, MDN, S/MIME |
 | [Testing your own code](docs/testing.md) | The fake server that ships with the package |
+| [Command line](docs/cli.md) | The `jmap` command: accounts, output, exit codes |
 
 ## Status and versioning
 
-**3.0.1** - stable, and following [Semantic Versioning](https://semver.org). See
+**3.1.0** - stable, and following [Semantic Versioning](https://semver.org). See
 the [changelog](CHANGELOG.md) for what changed.
 
 - **Experimental capabilities are outside the SemVer promise.** Calendars and

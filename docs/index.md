@@ -23,6 +23,8 @@ it, rather than assuming a fixed protocol surface.
 | [Errors](errors.md) | The four ways JMAP fails, which ones you can retry, and what this library catches before the wire. |
 | [Other capabilities](extensions.md) | Quota, Sieve, contacts, calendars, files, sharing, read receipts, S/MIME. |
 | [Testing your own code](testing.md) | The in-process fake server that ships with the package. |
+| [Command line](cli.md) | The `jmap` command: accounts, secrets, JSON output and exit codes. |
+| [Command reference](cli-reference.md) | Every `jmap` command, argument and option, generated from the commands. |
 
 ## Two things worth knowing up front
 

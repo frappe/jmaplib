@@ -31,7 +31,21 @@ dependencies = ["httpx>=0.28,<1", "pydantic>=2.11,<3"]
 discovery = ["dnspython>=2.6"]
 ws = ["httpx-ws>=0.7"]
 push = ["cryptography>=43"]
-cli = ["typer>=0.15", "rich>=13"]
+cli = [
+    "typer>=0.15",
+    "rich>=13",
+    "keyring>=25",
+    "prompt_toolkit>=3.0",
+    "tomli-w>=1.0",
+    "markdown-it-py>=3",
+    # Windows has no time zone database of its own; the calendar commands need one.
+    "tzdata>=2024.1; sys_platform == 'win32'",
+]
+
+[project.scripts]
+jmap = "jmap.cli:main"
+# The same command under a name nothing else uses: macOS ships a /usr/bin/jmap.
+jmap-cli = "jmap.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/frappe/jmaplib"
@@ -102,6 +116,9 @@ ignore = [
 # Pydantic resolves annotations at runtime to build models, so hoisting the types
 # they reference into a TYPE_CHECKING block breaks model construction.
 "src/jmap/models/**" = ["TC001", "TC002", "TC003"]
+# Typer reads each command's annotations at run time to build its options.
+"src/jmap/cli/commands/**" = ["TC001", "TC002", "TC003"]
+"src/jmap/cli/completers.py" = ["TC001", "TC002", "TC003"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["jmap"]
@@ -187,9 +204,50 @@ type = "layers"
 # No layer is optional (parenthesised): each exists, and a layer that vanished
 # would otherwise satisfy the contract by default.
 layers = [
+    "jmap.cli",
     "jmap.client | jmap.aio",
     "jmap.api",
     "jmap.capabilities",
     "jmap.models",
     "jmap.core",
 ]
+
+[[tool.importlinter.contracts]]
+name = "the library does not depend on the CLI or its extras"
+type = "forbidden"
+source_modules = [
+    "jmap.client",
+    "jmap.aio",
+    "jmap.api",
+    "jmap.capabilities",
+    "jmap.models",
+    "jmap.core",
+    "jmap.auth",
+    "jmap.push",
+    "jmap.sync",
+    "jmap.mail",
+    "jmap.testing",
+    "jmap.discovery",
+    "jmap.blobs",
+    "jmap.batch",
+    "jmap.chunking",
+    "jmap.defaults",
+    "jmap.sharing",
+    "jmap._shell",
+]
+forbidden_modules = [
+    "jmap.cli",
+    "typer",
+    "click",
+    "rich",
+    "keyring",
+    "prompt_toolkit",
+    "tomli_w",
+    "markdown_it",
+]
+
+[[tool.importlinter.contracts]]
+name = "jmap.mail queues calls on a batch and never sends them"
+type = "forbidden"
+source_modules = ["jmap.mail"]
+forbidden_modules = ["jmap.client", "jmap.aio", "httpx"]
