@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -22,11 +24,10 @@ from jmap.cli.context import CLIContext
 from jmap.cli.paths import config_path
 from jmap.cli.secrets import MemoryStore
 from jmap.testing import FakeJMAPServer
-from tests.fake.mailstore import MailStore
+from tests.fake.mailstore import SUBMISSION_URN, VACATION_URN, MailStore
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 CORE_URN = "urn:ietf:params:jmap:core"
 MAIL_URN = "urn:ietf:params:jmap:mail"
@@ -88,6 +89,40 @@ def server() -> FakeJMAPServer:
 def store(server: FakeJMAPServer) -> MailStore:
     """A mail store answering the mail methods, in place of the fixed mailboxes."""
     return MailStore(server)
+
+
+@pytest.fixture
+def mailer(server: FakeJMAPServer, store: MailStore, account: str) -> MailStore:
+    """A configured account on a server that can also send and auto-reply."""
+    for urn in (SUBMISSION_URN, VACATION_URN):
+        server.capabilities[urn] = {}
+        server.primary_accounts[urn] = "a"
+    return store
+
+
+class FakeEditor:
+    """Stands in for the editor: each call applies the next change to the file."""
+
+    def __init__(self, *changes: Callable[[str], str]) -> None:
+        self.changes = list(changes)
+        self.seen: list[str] = []
+
+    def __call__(self, command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        path = Path(command[-1])
+        text = path.read_text(encoding="utf-8")
+        self.seen.append(text)
+        path.write_text(self.changes.pop(0)(text), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+
+
+@pytest.fixture
+def editor(monkeypatch: pytest.MonkeyPatch) -> Callable[..., FakeEditor]:
+    def install(*changes: Callable[[str], str]) -> FakeEditor:
+        fake = FakeEditor(*changes)
+        monkeypatch.setattr(subprocess, "run", fake)
+        return fake
+
+    return install
 
 
 @pytest.fixture

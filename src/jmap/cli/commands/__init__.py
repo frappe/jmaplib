@@ -22,18 +22,25 @@ def register(app: typer.Typer) -> None:
     from jmap.cli.commands import (
         account,
         api,
+        attachment,
+        compose,
         config_cmd,
+        draft,
+        identity,
         mail,
+        mail_files,
         mail_read,
         mail_triage,
         mailbox,
         mailbox_edit,
         server,
         shell_cmd,
+        submission,
+        vacation,
     )
 
     # Importing these is what defines their commands on mail.app and mailbox.app.
-    del mail_read, mail_triage, mailbox_edit
+    del mail_read, mail_triage, mail_files, mailbox_edit
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
     app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
@@ -41,7 +48,14 @@ def register(app: typer.Typer) -> None:
     app.add_typer(server.app, name="server", help="The server's session and capabilities.")
     app.add_typer(api.app, name="api", help="Raw JMAP method calls.")
     app.add_typer(config_cmd.app, name="config", help="The configuration file.")
+    app.add_typer(draft.app, name="draft", help="Messages saved to finish later.")
+    app.add_typer(attachment.app, name="attachment", help="A message's files.")
+    app.add_typer(identity.app, name="identity", help="The addresses you send from.")
+    app.add_typer(submission.app, name="submission", help="Sent and held messages.")
+    app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
     app.command("shell")(shell_cmd.shell)
+    for verb in (compose.compose, compose.send, compose.reply, compose.forward):
+        app.command(rich_help_panel="Mail")(verb)
     _aliases(app, mail.app)
 
 

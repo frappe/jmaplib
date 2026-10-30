@@ -46,10 +46,17 @@ SURFACE = {
         "junk",
         "notjunk",
         "keyword",
+        "import",
+        "export",
     },
     "server": {"session", "capabilities", "conformance", "echo", "refresh"},
     "api": {"call"},
     "config": {"path", "edit", "set"},
+    "draft": {"list", "new", "edit", "send", "delete"},
+    "attachment": {"list", "download"},
+    "identity": {"list", "show", "create", "update", "delete"},
+    "submission": {"list", "show", "cancel"},
+    "vacation": {"show", "set", "enable", "disable"},
 }
 
 
@@ -93,8 +100,8 @@ def test_every_shortcut_exists_and_is_the_same_command():
         assert alias_params == [param.name for param in mail.commands[verb].params], alias
 
 
-def test_the_shell_exists():
-    assert "shell" in tree().commands
+def test_the_top_level_verbs_exist():
+    assert {"shell", "compose", "send", "reply", "forward"} <= set(tree().commands)
 
 
 def test_every_noun_and_verb_exists():

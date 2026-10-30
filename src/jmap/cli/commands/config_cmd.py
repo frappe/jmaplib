@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import shlex
-import subprocess
 import tomllib
 from typing import Annotated, Any
 
@@ -13,8 +10,8 @@ from pydantic import ValidationError
 
 from jmap.cli.commands import cli
 from jmap.cli.config import Config, load_config, save_config
-from jmap.cli.context import CLIContext
-from jmap.cli.errors import CLIError, ConfigError, UsageError
+from jmap.cli.editor import editor_command, run_editor
+from jmap.cli.errors import ConfigError, UsageError
 from jmap.core.narrow import is_object
 
 app: typer.Typer = typer.Typer(no_args_is_help=True)
@@ -34,10 +31,7 @@ def edit(ctx: typer.Context) -> None:
     target = context.config_path
     if not target.exists():
         save_config(Config(), target)
-    command = [*shlex.split(_editor(context)), str(target)]
-    done = subprocess.run(command, check=False)
-    if done.returncode != 0:
-        raise CLIError(f"the editor exited with status {done.returncode}")
+    run_editor(editor_command(context), target)
     load_config(target)  # a mistake is reported now, not on the next command
     context.renderer.note(f"{target} is valid")
 
@@ -76,15 +70,6 @@ def _value(text: str) -> Any:
         return tomllib.loads(f"value = {text}")["value"]
     except tomllib.TOMLDecodeError:
         return text
-
-
-def _editor(context: CLIContext) -> str:
-    try:
-        configured = context.config.defaults.editor
-    except CLIError:
-        configured = ""  # a broken file is what the editor is for
-    fallback = "notepad" if os.name == "nt" else "vi"
-    return configured or context.environ.get("VISUAL") or context.environ.get("EDITOR") or fallback
 
 
 def _settings_hint() -> str:

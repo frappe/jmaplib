@@ -31,6 +31,8 @@ from jmap.core.ids import InvalidIdError
 from jmap.core.patch import InvalidKeywordError, InvalidPatchError
 from jmap.core.session import InsecureEndpointError, MalformedSessionError
 from jmap.discovery import DiscoveryUnavailableError, UnconfirmedSRVTargetError
+from jmap.mail.addresses import InvalidAddressError
+from jmap.mail.compose import DraftParseError
 from jmap.mail.query import QueryError
 from jmap.sync.changes import ResyncRequiredError
 
@@ -104,6 +106,8 @@ _CODES: Final[tuple[tuple[tuple[type[BaseException], ...], ExitCode], ...]] = (
             ReadOnlyAccountError,
             NoAccountError,
             QueryError,
+            DraftParseError,
+            InvalidAddressError,
             InvalidKeywordError,
             InvalidPatchError,
         ),

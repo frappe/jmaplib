@@ -115,7 +115,7 @@ def list_(
 ) -> None:
     """List messages, newest first: the inbox, or the mailbox --in names."""
     filters = Filters(sender, recipient, subject, unread, flagged, attachment, before, after)
-    _run(
+    run_listing(
         cli(ctx),
         words,
         filters,
@@ -156,7 +156,7 @@ def search(
     """
     filters = Filters(sender, recipient, subject, unread, flagged, attachment, before, after)
     scope = Scope(None, everywhere=True, highlight=True)
-    _run(cli(ctx), words, filters, scope, sort, limit, page, every, count, threads)
+    run_listing(cli(ctx), words, filters, scope, sort, limit, page, every, count, threads)
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +166,7 @@ class Scope:
     highlight: bool = False
 
 
-def _run(
+def run_listing(
     context: CLIContext,
     words: list[str] | None,
     filters: Filters,

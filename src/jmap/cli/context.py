@@ -294,6 +294,10 @@ class CLIContext:
         """The open client, if there is one; never a connection."""
         return self._client
 
+    def adopt_mailboxes(self, index: MailboxIndex) -> None:
+        """Use an index another request already loaded."""
+        self._mailboxes = index
+
     def forget_mailboxes(self) -> None:
         """Drop the mailbox index after a change, so the next use reloads it."""
         self._mailboxes = None
