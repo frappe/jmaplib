@@ -57,6 +57,9 @@ SURFACE = {
     "identity": {"list", "show", "create", "update", "delete"},
     "submission": {"list", "show", "cancel"},
     "vacation": {"show", "set", "enable", "disable"},
+    "blob": {"upload", "download", "info", "lookup", "copy"},
+    "sieve": {"list", "get", "put", "validate", "activate", "deactivate", "delete"},
+    "quota": {"list", "show"},
 }
 
 

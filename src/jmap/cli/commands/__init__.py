@@ -53,10 +53,20 @@ def register(app: typer.Typer) -> None:
     app.add_typer(identity.app, name="identity", help="The addresses you send from.")
     app.add_typer(submission.app, name="submission", help="Sent and held messages.")
     app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
+    _server_tools(app)
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
     _aliases(app, mail.app)
+
+
+def _server_tools(app: typer.Typer) -> None:
+    """Blobs, filters and quotas."""
+    from jmap.cli.commands import blob, quota, sieve
+
+    app.add_typer(blob.app, name="blob", help="Upload, download and look up blobs.")
+    app.add_typer(sieve.app, name="sieve", help="Server-side mail filters (Sieve).")
+    app.add_typer(quota.app, name="quota", help="How much of each limit is used.")
 
 
 #: The daily verbs, also at the top level: ``jmap ls`` is ``jmap mail list``.
@@ -108,6 +118,11 @@ def json_argument(text: str | None, context: CLIContext) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise UsageError("the arguments must be a JSON object")
     return cast("dict[str, Any]", value)
+
+
+def comma_list(values: list[str] | None) -> list[str]:
+    """A repeatable option's values, each of which may also be a comma-separated list."""
+    return [part.strip() for value in values or [] for part in value.split(",") if part.strip()]
 
 
 def report_set(context: CLIContext, result: Any, done: str) -> None:
