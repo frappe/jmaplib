@@ -610,16 +610,17 @@ client = JMAPClient.connect(
 ```console
 $ jmap account add work --url https://mail.example.com/.well-known/jmap \
     --username alice@example.com
-$ jmap mailbox list
-$ jmap mailbox list --json | jq -r '.[].name'
-$ jmap server capabilities
-$ jmap api call Mailbox/get '{"ids": null}'
+$ jmap ls
+$ jmap read 2
+$ jmap search 'from:bob is:unread after:7d'
+$ jmap archive 1-2
+$ jmap ls --json | jq -r '.[].subject'
 ```
 
-Passwords go to the OS keyring, never onto the command line. `--json` prints the
-server's own objects, and the exit code says what kind of failure happened. This
-release has accounts, mailboxes, the session and raw calls; reading, searching
-and sending mail come next. See [Command line](docs/cli.md).
+Passwords go to the OS keyring, never onto the command line. Listings are
+numbered, and `read 2` means row 2 of the last one. `--json` prints the server's
+own objects, and the exit code says what kind of failure happened. Sending mail
+comes next. See [Command line](docs/cli.md).
 
 ## Testing your code
 

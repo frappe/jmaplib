@@ -19,7 +19,34 @@ if TYPE_CHECKING:
 #: Every noun and its verbs. Removing one is a breaking change.
 SURFACE = {
     "account": {"add", "list", "show", "remove", "set-default", "test", "login"},
-    "mailbox": {"list", "show"},
+    "mailbox": {
+        "list",
+        "show",
+        "create",
+        "rename",
+        "move",
+        "delete",
+        "subscribe",
+        "unsubscribe",
+        "empty",
+    },
+    "mail": {
+        "list",
+        "search",
+        "read",
+        "thread",
+        "move",
+        "copy",
+        "archive",
+        "delete",
+        "flag",
+        "unflag",
+        "seen",
+        "unseen",
+        "junk",
+        "notjunk",
+        "keyword",
+    },
     "server": {"session", "capabilities", "conformance", "echo", "refresh"},
     "api": {"call"},
 }
@@ -36,6 +63,33 @@ def walk(group: typer.core.TyperGroup) -> Iterator[tuple[str, object]]:
         yield name, command
         if isinstance(command, typer.core.TyperGroup):
             yield from ((f"{name} {sub}", inner) for sub, inner in walk(command))
+
+
+#: Top-level shortcuts for the daily verbs.
+SHORTCUTS = {
+    "ls",
+    "search",
+    "read",
+    "thread",
+    "move",
+    "delete",
+    "archive",
+    "flag",
+    "unflag",
+    "seen",
+    "unseen",
+}
+
+
+def test_every_shortcut_exists_and_is_the_same_command():
+    root = tree()
+    mail = root.commands["mail"]
+    assert isinstance(mail, typer.core.TyperGroup)
+    assert set(root.commands) >= SHORTCUTS
+    # Typer wraps each callback, so compare what the commands accept.
+    for alias, verb in (("ls", "list"), ("read", "read"), ("move", "move")):
+        alias_params = [param.name for param in root.commands[alias].params]
+        assert alias_params == [param.name for param in mail.commands[verb].params], alias
 
 
 def test_every_noun_and_verb_exists():

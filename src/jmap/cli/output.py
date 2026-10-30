@@ -65,6 +65,8 @@ class Column:
     #: Turns the item into the cell's text; by default, ``str(item[key])``.
     text: Callable[[Mapping[str, Any]], str] | None = None
     justify: JustifyMethod = "left"
+    #: Rich markup for a table cell, where styling helps; plain text uses :attr:`text`.
+    markup: Callable[[Mapping[str, Any]], str] | None = None
 
     def cell(self, item: Mapping[str, Any]) -> str:
         if self.text is not None:
@@ -83,6 +85,11 @@ class View:
     single: bool = False
     title: str | None = None
     footer: str | None = field(default=None)
+    #: Number the rows from here, so later commands can refer to them as ``3``.
+    first_number: int | None = None
+
+    def number(self, row: int) -> list[str]:
+        return [] if self.first_number is None else [str(self.first_number + row)]
 
 
 class Renderer:
@@ -135,8 +142,9 @@ class Renderer:
                 for column in view.columns:
                     self._write(f"{column.header.lower()}\t{_flat(column.cell(item))}")
             return
-        for item in view.items:
-            self._write("\t".join(_flat(column.cell(item)) for column in view.columns))
+        for row, item in enumerate(view.items):
+            cells = [*view.number(row), *(_flat(column.cell(item)) for column in view.columns)]
+            self._write("\t".join(cells))
 
     def _json(self, view: View) -> None:
         items = [wire_of(item) for item in view.items]
@@ -171,11 +179,17 @@ def wire_of(value: Any) -> Any:
 
 def _list_table(view: View) -> Table:
     table = Table(box=box.SIMPLE_HEAD, title=view.title, pad_edge=False)
+    if view.first_number is not None:
+        table.add_column("#", justify="right", style="dim")
     for column in view.columns:
         table.add_column(column.header, justify=column.justify, overflow="fold")
-    for item in view.items:
-        table.add_row(*(escape(column.cell(item)) for column in view.columns))
+    for row, item in enumerate(view.items):
+        table.add_row(*view.number(row), *(_table_cell(column, item) for column in view.columns))
     return table
+
+
+def _table_cell(column: Column, item: Mapping[str, Any]) -> str:
+    return column.markup(item) if column.markup is not None else escape(column.cell(item))
 
 
 def _key_value_table(view: View) -> Table:

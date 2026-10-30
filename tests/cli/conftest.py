@@ -22,6 +22,7 @@ from jmap.cli.context import CLIContext
 from jmap.cli.paths import config_path
 from jmap.cli.secrets import MemoryStore
 from jmap.testing import FakeJMAPServer
+from tests.fake.mailstore import MailStore
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -81,6 +82,12 @@ def server() -> FakeJMAPServer:
     )
     fake.handle("Mailbox/get", mailbox_get)
     return fake
+
+
+@pytest.fixture
+def store(server: FakeJMAPServer) -> MailStore:
+    """A mail store answering the mail methods, in place of the fixed mailboxes."""
+    return MailStore(server)
 
 
 @pytest.fixture

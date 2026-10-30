@@ -140,3 +140,22 @@ class TestWire:
         r, out, _ = renderer(OutputFormat.TABLE)
         r.json({"a": "é"})
         assert out.getvalue() == '{\n  "a": "é"\n}\n'
+
+
+class TestNumbered:
+    def test_plain_rows_carry_their_number(self):
+        r, out, _ = renderer(OutputFormat.PLAIN)
+        r.render(View(ITEMS, COLUMNS, first_number=26))
+        assert out.getvalue().splitlines()[1].startswith("27\t")
+
+    def test_table_has_a_number_column_and_markup_cells(self):
+        r, out, _ = renderer(OutputFormat.TABLE)
+        marked = Column("NAME", "name", markup=lambda item: f"[bold]{item['name']}[/]")
+        r.render(View(ITEMS[:1], [marked], first_number=1))
+        assert "#" in out.getvalue()
+        assert "[bold]" not in out.getvalue()
+
+    def test_json_has_no_numbers(self):
+        r, out, _ = renderer(OutputFormat.JSON)
+        r.render(View(ITEMS, COLUMNS, first_number=1))
+        assert json.loads(out.getvalue()) == ITEMS

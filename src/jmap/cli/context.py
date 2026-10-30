@@ -20,9 +20,9 @@ from jmap.cli.auth import Credentials
 from jmap.cli.config import Config, Overrides, load_config, resolve_account, save_config
 from jmap.cli.connect import http_client, open_client, select_account
 from jmap.cli.errors import CLIError, UnsupportedError
-from jmap.cli.ids import MailboxIndex
+from jmap.cli.ids import Cursor, MailboxIndex
 from jmap.cli.output import OutputFormat, OutputOptions, Renderer
-from jmap.cli.paths import config_path
+from jmap.cli.paths import config_path, state_dir
 from jmap.cli.prompts import TerminalPrompter
 from jmap.cli.secrets import KeyringStore, MemoryStore
 from jmap.defaults import default_registry
@@ -114,6 +114,7 @@ class CLIContext:
         self._client: JMAPClient | None = None
         self._http: httpx.Client | None = None
         self._mailboxes: MailboxIndex | None = None
+        self._cursor: Cursor | None = None
         self._log_handler: logging.Handler | None = None
 
     @classmethod
@@ -225,7 +226,30 @@ class CLIContext:
             self._mailboxes = MailboxIndex.load(self.require("Mailbox/get"))
         return self._mailboxes
 
+    def forget_mailboxes(self) -> None:
+        """Drop the mailbox index after a change, so the next use reloads it."""
+        self._mailboxes = None
+
+    @property
+    def cursor(self) -> Cursor:
+        """The last listing for this named account and JMAP account."""
+        if self._cursor is None:
+            jmap_account = self.client().default_account or "default"
+            path = state_dir(self.environ) / self.account.name / jmap_account / "cursor.json"
+            self._cursor = Cursor(path)
+        return self._cursor
+
     # -- output ------------------------------------------------------------- #
+    def write_bytes(self, data: bytes) -> None:
+        """Raw bytes to stdout, such as a message's source."""
+        buffer = getattr(self.out.file, "buffer", None)
+        if buffer is None:
+            self.out.file.write(data.decode("utf-8", "replace"))
+        else:
+            self.out.file.flush()
+            buffer.write(data)
+            buffer.flush()
+
     @property
     def renderer(self) -> Renderer:
         return Renderer(self.out, self.err, self.options)
@@ -244,6 +268,7 @@ class CLIContext:
             self._client.close()
             self._client = None
             self._mailboxes = None
+            self._cursor = None
         if self._http is not None:
             self._http.close()
             self._http = None

@@ -8,14 +8,19 @@ that calls it "Posteingang".
 
 from __future__ import annotations
 
+import json
+import re
+import time
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Final
+from dataclasses import asdict, dataclass
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.output import wire_of
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
+    from pathlib import Path
 
     from jmap.client import BatchContext, JMAPClient
     from jmap.core.invocation import Handle
@@ -139,3 +144,116 @@ def _ambiguous(reference: str, paths: Sequence[str]) -> UsageError:
         f"{reference!r} names several mailboxes: {', '.join(sorted(paths))}",
         hint="use the full path or id:<id>",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Message references and the cursor
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True, slots=True)
+class Ref:
+    """One message reference: a listing number, an id, a Message-ID or a thread."""
+
+    kind: Literal["index", "id", "msgid", "thread"]
+    value: str
+
+
+_PREFIXES: Final[tuple[Literal["id", "msgid", "thread"], ...]] = ("id", "msgid", "thread")
+_RANGE: Final = re.compile(r"(\d+)(?:-(\d+))?")
+#: More than any listing holds; stops ``1-99999999`` building a huge list.
+_MAX_RANGE: Final = 10_000
+
+
+def parse_refs(words: Sequence[str]) -> list[Ref]:
+    """``3``, ``1-5``, ``2,7``, ``id:M1``, ``msgid:<a@b>``, ``thread:T1``, or a bare id.
+
+    Bare numbers are listing numbers. RFC 8620 §1.2 asks servers not to use
+    all-digit ids, which is what keeps that unambiguous; ``id:`` forces an id.
+    """
+    refs: list[Ref] = []
+    for word in words:
+        for prefix in _PREFIXES:
+            if word.startswith(f"{prefix}:") and len(word) > len(prefix) + 1:
+                refs.append(Ref(prefix, word[len(prefix) + 1 :]))
+                break
+        else:
+            refs += _numbers(word) if word[:1].isdigit() else [Ref("id", word)]
+    if not refs:
+        raise UsageError("name at least one message")
+    return refs
+
+
+def _numbers(word: str) -> list[Ref]:
+    refs: list[Ref] = []
+    for part in filter(None, word.split(",")):
+        found = _RANGE.fullmatch(part)
+        if found is None:
+            raise UsageError(f"{part!r} is not a message number or range")
+        first, last = int(found[1]), int(found[2] or found[1])
+        if first < 1 or last < first or last - first >= _MAX_RANGE:
+            raise UsageError(f"{part!r} is not a usable range")
+        refs += [Ref("index", str(number)) for number in range(first, last + 1)]
+    return refs
+
+
+@dataclass(frozen=True, slots=True)
+class Listing:
+    """What the last listing showed, so ``read 3`` means its third row."""
+
+    ids: tuple[str, ...]
+    #: The number shown on the first row: ``26`` on the second page of 25.
+    first: int = 1
+    #: The mailbox listed, when there was one; a move takes mail out of it.
+    mailbox_id: str | None = None
+    query: str = ""
+
+
+class Cursor:
+    """The last listing, in memory and (when given a path) on disk between runs."""
+
+    def __init__(self, path: Path | None) -> None:
+        self._path = path
+        self._listing: Listing | None = None
+
+    def record(self, listing: Listing) -> None:
+        self._listing = listing
+        if self._path is None:
+            return
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        body = {**asdict(listing), "ids": list(listing.ids), "at": int(time.time())}
+        self._path.write_text(json.dumps(body), encoding="utf-8")
+
+    @property
+    def listing(self) -> Listing | None:
+        if self._listing is None and self._path is not None:
+            self._listing = _read_listing(self._path)
+        return self._listing
+
+    def resolve(self, number: int) -> str:
+        listing = self.listing
+        if listing is None:
+            raise NotFoundError(
+                f"there is no listing to take message {number} from",
+                hint="run 'jmap mail list' first",
+            )
+        index = number - listing.first
+        if not 0 <= index < len(listing.ids):
+            last = listing.first + len(listing.ids) - 1
+            shown = f"{listing.first}-{last}" if listing.ids else "none"
+            raise NotFoundError(
+                f"the last listing has no message {number} (it showed {shown})",
+                hint="run 'jmap mail list' again",
+            )
+        return listing.ids[index]
+
+
+def _read_listing(path: Path) -> Listing | None:
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+        return Listing(
+            ids=tuple(str(item) for item in body["ids"]),
+            first=int(body["first"]),
+            mailbox_id=body.get("mailbox_id"),
+            query=str(body.get("query", "")),
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return None  # a missing or damaged cursor is no listing, not an error

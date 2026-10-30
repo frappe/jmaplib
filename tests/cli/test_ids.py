@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from jmap.cli.errors import NotFoundError, UsageError
-from jmap.cli.ids import MailboxIndex
+from jmap.cli.ids import Cursor, Listing, MailboxIndex, parse_refs
 
 from .conftest import MAILBOXES
 
@@ -70,3 +70,67 @@ class TestTree:
         assert len(boxes) == 4
         assert boxes.get("m1") is not None
         assert boxes.get("zz") is None
+
+
+class TestParseRefs:
+    def test_numbers_ranges_and_lists(self):
+        refs = parse_refs(["3", "1-2,7"])
+        assert [(ref.kind, ref.value) for ref in refs] == [
+            ("index", "3"),
+            ("index", "1"),
+            ("index", "2"),
+            ("index", "7"),
+        ]
+
+    def test_prefixes_and_bare_ids(self):
+        refs = parse_refs(["id:42", "msgid:<a@b>", "thread:T1", "Mabc", "id:"])
+        assert [(ref.kind, ref.value) for ref in refs] == [
+            ("id", "42"),
+            ("msgid", "<a@b>"),
+            ("thread", "T1"),
+            ("id", "Mabc"),
+            ("id", "id:"),
+        ]
+
+    @pytest.mark.parametrize("word", ["3-1", "0", "1-x", "1-20000"])
+    def test_bad_ranges(self, word):
+        with pytest.raises(UsageError):
+            parse_refs([word])
+
+    def test_nothing(self):
+        with pytest.raises(UsageError, match="name at least one message"):
+            parse_refs([])
+
+
+class TestCursor:
+    def test_on_disk_between_runs(self, tmp_path):
+        path = tmp_path / "a" / "cursor.json"
+        Cursor(path).record(Listing(ids=("e1", "e2"), first=26, mailbox_id="inbox", query="q"))
+        again = Cursor(path)
+        assert again.resolve(27) == "e2"
+        assert again.listing == Listing(("e1", "e2"), 26, "inbox", "q")
+
+    def test_in_memory(self):
+        cursor = Cursor(None)
+        cursor.record(Listing(ids=("e1",)))
+        assert cursor.resolve(1) == "e1"
+
+    def test_no_listing(self, tmp_path):
+        with pytest.raises(NotFoundError, match="no listing") as caught:
+            Cursor(tmp_path / "none.json").resolve(1)
+        assert caught.value.hint == "run 'jmap mail list' first"
+
+    def test_out_of_range(self):
+        cursor = Cursor(None)
+        cursor.record(Listing(ids=("e1", "e2")))
+        with pytest.raises(NotFoundError, match=r"no message 3 \(it showed 1-2\)"):
+            cursor.resolve(3)
+        cursor.record(Listing(ids=()))
+        with pytest.raises(NotFoundError, match=r"it showed none"):
+            cursor.resolve(1)
+
+    @pytest.mark.parametrize("body", ["{", '{"ids": "x"}', "[]", '{"ids": []}'])
+    def test_a_damaged_file_is_no_listing(self, tmp_path, body):
+        path = tmp_path / "cursor.json"
+        path.write_text(body)
+        assert Cursor(path).listing is None

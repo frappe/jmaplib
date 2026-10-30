@@ -4,9 +4,9 @@
 library: every command is a batch you could write yourself, and `-v` shows each
 request it sends. `python -m jmap` runs the same command.
 
-This release has the foundation: accounts, mailboxes, the server's session and
-capabilities, and raw method calls. Reading, searching, triage and sending mail
-come next, then the shell, contacts, calendars and files.
+This release has accounts, mailboxes, reading, searching and filing mail, the
+server's session and capabilities, and raw method calls. Sending mail comes
+next, then the shell, contacts, calendars and files.
 
 ## First run
 
@@ -24,6 +24,63 @@ such as `https://mail.example.com`, means its `/.well-known/jmap`. Without
 `--url`, give `--address` and the server is found from the address (RFC 8620
 §2.2). The account's name is only a label: sign in with `--username`, or with
 `--address`, which is the username when `--username` is not given.
+
+## Reading mail
+
+```console
+$ jmap ls
+  #  FLAGS  DATE    FROM    SUBJECT                    SIZE
+  1  *      Oct 29  Carol   Re: Invoice for October   12.1K
+  2  N@     Oct 28  Bob     Invoice for October       48.0K
+1-2 of 312 · Inbox · -date
+$ jmap read 2
+$ jmap search 'from:bob is:unread after:7d'
+$ jmap archive 1-2
+```
+
+A listing numbers its rows, and the numbers stay valid in later commands until
+the next listing: `jmap read 2`, `jmap move 1-4 Archive/2025`, `jmap flag 1,3`.
+That is the *cursor*, kept per account in `$XDG_STATE_HOME/jmap`. Instead of a
+number you can give an id, `id:<id>`, `msgid:<message-id>` or `thread:<id>`.
+
+The FLAGS column shows `N` unread, `*` flagged, `@` has attachments, `R`
+answered, `F` forwarded, `D` draft and `J` junk.
+
+`jmap ls` lists the inbox; `--in MAILBOX` another, `-A` every mailbox. `jmap
+search` looks everywhere and highlights the matches. Both take the same terms,
+and options that are shorthand for them:
+
+| Term | Option | Means |
+|---|---|---|
+| `from:bob` `to:` `cc:` `subject:` `body:` | `--from` `--to` `--subject` | That field contains the text. |
+| `invoice` | | Any field contains the word. |
+| `is:unread` `is:flagged` `is:answered` `is:draft` | `--unread` `--flagged` | A keyword is set. |
+| `tag:work` | | Your own keyword. |
+| `has:attachment` | `--attachment` | It has files. |
+| `before:2025-01-31` `after:7d` | `--before` `--after` | Dates; also `today`, `yesterday`, `2w`, `3m`, `1y`. |
+| `larger:2M` `smaller:10K` | | Size. |
+| `in:archive` `notin:junk` | `--in` | Mailboxes. |
+| `header:List-Id` | | A header is present, or `header:Name=value` contains a value. |
+
+Terms next to each other must all match. `OR`, `NOT` or a leading `-`, and
+parentheses combine them: `from:bob (invoice OR receipt) -has:attachment`. Quote
+a whole query, or a value with spaces: `'subject:"weekly report"'`.
+
+`--sort` takes a comma list of `date`, `subject`, `from`, `to`, `size`,
+`flagged` and `unread`, each with `-` for descending; the default is `-date`.
+`-n` sets the page size, `--page` picks a page, `--all` fetches every page,
+`--count` prints only the number of matches, and `--threads` shows one row per
+conversation.
+
+`jmap read` prints the headers, the body as text (HTML is converted; `--html`
+prefers the HTML part), and the attachments, then marks the message read
+(`--no-mark-seen` does not). `--headers List-Id,X-Spam` adds headers, and
+`--raw` prints the message source.
+
+Filing commands patch a message, never rewrite it. `jmap move 3 Archive` takes
+the message out of the mailbox it was listed from and puts it in Archive; a
+message also filed elsewhere stays there. When the source is unknown (you named
+it by id), give `--from MAILBOX`, or the message ends up in the target alone.
 
 ## Two kinds of account
 
@@ -139,7 +196,7 @@ $ JMAP_URL=https://mail.example.com/.well-known/jmap JMAP_USER=ci@example.com \
 |---|---|
 | 0 | Success. |
 | 1 | An unexpected error; `-v` shows the traceback. |
-| 2 | Bad usage: an unknown option, bad JSON, an ambiguous mailbox. |
+| 2 | Bad usage: an unknown option, bad JSON or search text, an ambiguous mailbox. |
 | 3 | Authentication failed. |
 | 4 | No connection: network, TLS, discovery, an untrusted SRV target. |
 | 5 | The server refused the whole request (RFC 7807). |
@@ -167,6 +224,24 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap account remove NAME` | Remove it and its stored secrets. |
 | `jmap mailbox list [--tree] [--subscribed]` | Every mailbox, parents first. |
 | `jmap mailbox show MAILBOX` | One mailbox: counts, path, your rights. |
+| `jmap mailbox create PATH [--role ROLE]` | A new mailbox: `Receipts`, `Archive/2026`. |
+| `jmap mailbox rename MAILBOX NAME` | Rename it in place. |
+| `jmap mailbox move MAILBOX [PARENT]` | Move it under another, or to the top. |
+| `jmap mailbox delete MAILBOX [--with-mail]` | Delete it, after you confirm. |
+| `jmap mailbox subscribe/unsubscribe MAILBOX` | Show or hide it in mail clients. |
+| `jmap mailbox empty MAILBOX [--match QUERY]` | Destroy its mail, after you confirm. |
+| `jmap mail list [QUERY]` (`jmap ls`) | Messages in the inbox or `--in MAILBOX`, numbered. |
+| `jmap mail search QUERY` (`jmap search`) | Messages anywhere, with matches highlighted. |
+| `jmap mail read MSG...` (`jmap read`) | Headers, body and attachments; marks them read. |
+| `jmap mail thread MSG` (`jmap thread`) | The conversation, oldest first; `--read` shows it all. |
+| `jmap mail move MSG... MAILBOX` (`jmap move`) | File messages elsewhere. |
+| `jmap mail copy MSG... MAILBOX` | Add them to another mailbox too. |
+| `jmap mail archive MSG...` (`jmap archive`) | Move them to the archive mailbox. |
+| `jmap mail delete MSG... [--permanent]` (`jmap delete`) | Move them to Trash, or destroy them. |
+| `jmap mail flag/unflag MSG...` (`jmap flag`) | Set or clear the flag. |
+| `jmap mail seen/unseen MSG...` (`jmap seen`) | Mark them read or unread. |
+| `jmap mail junk/notjunk MSG...` | Mark them junk and file them in Junk, or the reverse. |
+| `jmap mail keyword MSG... --add K --remove K` | Set or clear any keyword. |
 | `jmap server session` | The session resource; `--json` prints all of it. |
 | `jmap server capabilities` | What the server advertises, and what this build speaks. |
 | `jmap server conformance [--markdown]` | Every capability this build models, against the server. |

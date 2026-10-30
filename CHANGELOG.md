@@ -16,6 +16,18 @@ for exactly which revision of each spec this build implements.
   (`jmap server session/capabilities/conformance/echo/refresh`), and raw method
   calls (`jmap api call`). `--json` prints the server's own objects, and the exit
   code says what kind of failure happened. See `docs/cli.md`.
+- **Reading and filing mail from the command line.** `jmap mail list` (`jmap ls`)
+  and `jmap mail search` (`jmap search`) number their rows, and later commands
+  take those numbers: `jmap read 3`, `jmap move 1-4 Archive`, `jmap flag 2,5`.
+  Also `thread`, `copy`, `archive`, `delete`, `seen`, `unseen`, `junk`, `notjunk`
+  and `keyword`, and `jmap mailbox create/rename/move/delete/subscribe/
+  unsubscribe/empty`. A move is a patch, so mail filed in several mailboxes stays
+  where else it is.
+- **`jmap.mail`**, for the same jobs from Python, with no I/O of its own: a
+  search language compiled to an `Email/query` filter
+  (`jmap.mail.query.parse`/`to_filter`), the bodies as text with HTML converted
+  by the standard library (`body_text`, `html_to_text`), and the batches behind
+  listing, reading and threads (`queue_list`, `queue_read`, `queue_thread`).
 - **The `cli` extra** now also installs `keyring`, `prompt_toolkit`, `tomli-w` and
   `markdown-it-py`. The library itself still needs only `httpx` and `pydantic`.
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 
-from jmap.cli.errors import UsageError
+from jmap.cli.errors import PartialFailureError, UsageError
+from jmap.cli.output import wire_of
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import typer
 
     from jmap.cli.context import CLIContext
@@ -16,12 +19,54 @@ if TYPE_CHECKING:
 
 def register(app: typer.Typer) -> None:
     """Mount every noun on ``app``."""
-    from jmap.cli.commands import account, api, mailbox, server
+    from jmap.cli.commands import (
+        account,
+        api,
+        mail,
+        mail_read,
+        mail_triage,
+        mailbox,
+        mailbox_edit,
+        server,
+    )
+
+    # Importing these is what defines their commands on mail.app and mailbox.app.
+    del mail_read, mail_triage, mailbox_edit
 
     app.add_typer(account.app, name="account", help="Named accounts: servers and credentials.")
-    app.add_typer(mailbox.app, name="mailbox", help="List and inspect mailboxes.")
+    app.add_typer(mailbox.app, name="mailbox", help="List, create and change mailboxes.")
+    app.add_typer(mail.app, name="mail", help="List, search, read and file messages.")
     app.add_typer(server.app, name="server", help="The server's session and capabilities.")
     app.add_typer(api.app, name="api", help="Raw JMAP method calls.")
+    _aliases(app, mail.app)
+
+
+#: The daily verbs, also at the top level: ``jmap ls`` is ``jmap mail list``.
+ALIASES: Final = {
+    "ls": "list",
+    "search": "search",
+    "read": "read",
+    "thread": "thread",
+    "move": "move",
+    "delete": "delete",
+    "archive": "archive",
+    "flag": "flag",
+    "unflag": "unflag",
+    "seen": "seen",
+    "unseen": "unseen",
+}
+
+
+def _aliases(app: typer.Typer, mail: typer.Typer) -> None:
+    """Register each daily verb's callback a second time, at the top level."""
+    callbacks: dict[str, Callable[..., Any]] = {}
+    for info in mail.registered_commands:
+        callback = cast("Callable[..., Any]", info.callback)
+        # Typer names an unnamed command after its function, as here.
+        callbacks[info.name or callback.__name__.replace("_", "-")] = callback
+    for alias, verb in ALIASES.items():
+        help_text = f"Alias of 'jmap mail {verb}'."
+        app.command(alias, help=help_text, rich_help_panel="Mail")(callbacks[verb])
 
 
 def cli(ctx: typer.Context) -> CLIContext:
@@ -45,3 +90,32 @@ def json_argument(text: str | None, context: CLIContext) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise UsageError("the arguments must be a JSON object")
     return cast("dict[str, Any]", value)
+
+
+def report_set(context: CLIContext, result: Any, done: str) -> None:
+    """Say what a ``/set`` changed, and raise for anything it refused.
+
+    ``done`` names the change, as in ``"moved {n} message(s)"``. JSON mode
+    prints the response itself. Refusals end the run with exit 8 after the
+    successes are reported.
+    """
+    response = wire_of(result)
+    if context.options.json_mode:
+        context.renderer.json(response)
+    changed = len(response.get("updated") or {}) + len(response.get("destroyed") or [])
+    changed += len(response.get("created") or {})
+    if changed:
+        # Not str.format: the text holds mailbox names, which may hold braces.
+        context.renderer.note(done.replace("{n}", str(changed)))
+    refused: dict[str, dict[str, Any]] = {
+        **(response.get("notCreated") or {}),
+        **(response.get("notUpdated") or {}),
+        **(response.get("notDestroyed") or {}),
+    }
+    if refused:
+        reasons = "; ".join(
+            f"{key}: {error.get('type')}"
+            + (f" ({error['description']})" if error.get("description") else "")
+            for key, error in refused.items()
+        )
+        raise PartialFailureError(f"{len(refused)} not changed: {reasons}")
