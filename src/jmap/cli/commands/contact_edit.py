@@ -18,7 +18,9 @@ from jmap.cli.errors import CLIError, UsageError
 @app.command()
 def edit(
     ctx: typer.Context,
-    contact: Annotated[str, typer.Argument(help="The card: an id, or an email address.")],
+    contact: Annotated[
+        str, typer.Argument(help="The card: a listing number, an id, or an address.")
+    ],
 ) -> None:
     """Edit a contact card's JSON in your editor; only what you change is sent."""
     context = cli(ctx)

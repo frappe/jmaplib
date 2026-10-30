@@ -14,7 +14,7 @@ from typing import Annotated
 import typer
 
 from jmap.cli.commands import cli
-from jmap.cli.commands.mail import select
+from jmap.cli.commands.mail_select import select
 from jmap.cli.commands.sending import Message, compose_draft, deliver, prelude, send_eml
 from jmap.cli.errors import NotFoundError
 from jmap.mail.render import body_text

@@ -2,7 +2,8 @@
 
 A listing numbers its rows and remembers them (the cursor), so ``jmap read 3``
 or ``jmap move 1-4 archive`` in a later run means rows of that listing. The
-other mail commands live in :mod:`.mail_read` and :mod:`.mail_triage`.
+other mail commands live in :mod:`.mail_read` and :mod:`.mail_triage`, and
+:mod:`.mail_select` turns their arguments into message ids.
 """
 
 from __future__ import annotations
@@ -15,11 +16,11 @@ import typer
 
 from jmap.cli.commands import cli
 from jmap.cli.commands.mail_columns import COLUMNS, ListingColumns, footer
+from jmap.cli.commands.mail_select import select
 from jmap.cli.context import CLIContext
-from jmap.cli.errors import NotFoundError, UsageError
-from jmap.cli.ids import Listing, Mailbox, Ref, parse_refs
+from jmap.cli.errors import UsageError
+from jmap.cli.ids import Listing, Mailbox
 from jmap.cli.output import OutputFormat, View, wire_of
-from jmap.core.ids import parse_id
 from jmap.mail.ops import queue_list
 from jmap.mail.query import And, Node, Term, mentions, needs_snippets, parse, parse_sort, to_filter
 
@@ -106,15 +107,6 @@ class Fetched:
     first: int
     total: int | None
     snippets: dict[str, dict[str, Any]] = field(default_factory=dict[str, dict[str, Any]])
-
-
-@dataclass(frozen=True, slots=True)
-class Selection:
-    """The messages a command acts on."""
-
-    ids: list[str]
-    #: The mailbox they were listed from, when every one came from the listing.
-    mailbox_id: str | None = None
 
 
 @app.command("list")
@@ -303,50 +295,3 @@ def combine(node: Node | None, terms: list[Term]) -> Node | None:
     if not items:
         return None
     return items[0] if len(items) == 1 else And(tuple(items))
-
-
-def select(context: CLIContext, words: list[str]) -> Selection:
-    """The ids ``words`` refer to: listing numbers, ids, Message-IDs or threads."""
-    refs = parse_refs(words)
-    lookups = [ref for ref in refs if ref.kind in {"msgid", "thread"}]
-    found = _look_up(context, lookups) if lookups else {}
-    ids: list[str] = []
-    for ref in refs:
-        if ref.kind == "index":
-            ids.append(context.cursor.resolve(int(ref.value)))
-        elif ref.kind == "id":
-            ids.append(parse_id(ref.value))
-        else:
-            ids += found[ref]
-    unique = list(dict.fromkeys(ids))
-    from_listing = all(ref.kind == "index" for ref in refs)
-    listing = context.cursor.listing if from_listing else None
-    return Selection(unique, listing.mailbox_id if listing else None)
-
-
-def _look_up(context: CLIContext, refs: list[Ref]) -> dict[Ref, list[str]]:
-    """Email ids for Message-IDs and threads, in one request."""
-    client = context.require("Email/query", "Thread/get")
-    with client.batch() as batch:
-        handles = {
-            ref: batch.add("Email/query", {"filter": {"header": ["Message-ID", ref.value]}})
-            if ref.kind == "msgid"
-            else batch.add("Thread/get", {"ids": [ref.value]})
-            for ref in refs
-        }
-    found: dict[Ref, list[str]] = {}
-    for ref, handle in handles.items():
-        result = wire_of(handle.result)
-        ids = (
-            result.get("ids")
-            if ref.kind == "msgid"
-            else [
-                email_id
-                for thread in result.get("list", [])
-                for email_id in thread.get("emailIds", [])
-            ]
-        )
-        if not ids:
-            raise NotFoundError(f"no message has {ref.kind} {ref.value!r}")
-        found[ref] = [str(email_id) for email_id in ids]
-    return found

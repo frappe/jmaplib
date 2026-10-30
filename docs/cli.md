@@ -2,7 +2,13 @@
 
 `pip install 'jmaplib[cli]'` adds a `jmap` command. It is a thin layer over the
 library: every command is a batch you could write yourself, and `-v` shows each
-request it sends. `python -m jmap` runs the same command.
+request it sends. `python -m jmap` runs the same command, and so does
+`jmap-cli`.
+
+macOS ships a Java tool at `/usr/bin/jmap`. If `jmap --version` does not print
+`jmap` and a version number, that tool comes first in your `PATH`. Use
+`jmap-cli`, or put the directory pip installs to (for example `~/.local/bin`)
+before `/usr/bin` in `PATH`.
 
 It covers accounts (passwords, tokens or OAuth), mailboxes, reading, searching,
 filing and writing mail, contacts, calendars, files, sharing, read receipts,
@@ -160,8 +166,8 @@ $ jmap contact delete c42
 ```
 
 Contacts use RFC 9610: cards are JSContact `ContactCard` objects, and each
-card is in one or more address books. A `CONTACT` is a card id, or an email
-address that exactly one card has. An `--book` is an address book's id or
+card is in one or more address books. A `CONTACT` is a number from the last
+`contact list`, a card id, or an email address that exactly one card has. An `--book` is an address book's id or
 name. Without `--book`, `create` and `import` use the default address book.
 
 `contact list` sends `ContactCard/query` and `ContactCard/get` in one request.
@@ -357,14 +363,16 @@ stopped. Because the output is a stream, `--json` prints one object per line,
 as `--jsonl` does.
 
 `--new-mail` prints one line for each message that arrives, with its id, date,
-sender and subject. `--match QUERY` keeps only the messages a search finds, in
-the language of `jmap search`.
+sender and subject. A message that is a draft, or is already read (such as the
+copy of a message you sent), is not new mail. `--match QUERY` keeps only the
+messages a search finds, in the language of `jmap search`.
 
 `--exec CMD` runs a command for each change, with the event as JSON on its
 stdin. Its environment also has `JMAP_ACCOUNT` (the named account, so a `jmap`
 command in it uses the same account), `JMAP_TYPES` (the types that changed,
-comma-separated) and `JMAP_STATES` (the new states, as JSON). The command is
-not run through a shell. For pipes, use `--exec "sh -c '...'"`.
+comma-separated) and `JMAP_STATES` (the new states, as JSON). The command runs
+through your shell, so pipes and variables work: `--exec 'jq .changed | tee -a
+changes.log'`.
 
 ### Push subscriptions
 

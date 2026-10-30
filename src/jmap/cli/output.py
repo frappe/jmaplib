@@ -167,7 +167,11 @@ class Renderer:
 def wire_of(value: Any) -> Any:
     """The JSON shape of a library value: models and objects as their wire form."""
     if isinstance(value, BaseModel):
-        return value.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        # The fallback reaches untyped objects inside a model, such as a legacy
+        # ``Contact`` in a ``GetResponse``, which pydantic cannot serialise.
+        return value.model_dump(
+            mode="json", by_alias=True, exclude_unset=True, fallback=_untyped_wire
+        )
     if isinstance(value, JMAPObject):
         return value.raw
     if is_object(value):
@@ -175,6 +179,12 @@ def wire_of(value: Any) -> Any:
     if is_list(value):
         return [wire_of(item) for item in value]
     return value
+
+
+def _untyped_wire(value: Any) -> Any:
+    if isinstance(value, JMAPObject):
+        return value.raw
+    raise TypeError(f"cannot show a {type(value).__name__} as JSON")
 
 
 def _list_table(view: View) -> Table:

@@ -9,7 +9,7 @@ import typer
 
 from jmap.cli import format as fmt
 from jmap.cli.commands import cli
-from jmap.cli.commands.mail import select
+from jmap.cli.commands.mail_select import select
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.files import safe_name, target_path, write_file

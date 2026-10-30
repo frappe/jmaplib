@@ -42,6 +42,8 @@ cli = [
 
 [project.scripts]
 jmap = "jmap.cli:main"
+# The same command under a name nothing else uses: macOS ships a /usr/bin/jmap.
+jmap-cli = "jmap.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/frappe/jmaplib"

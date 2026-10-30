@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.metadata
 import importlib.util
 import subprocess
 import sys
@@ -27,6 +28,14 @@ class TestMain:
     def test_with_it(self, capsys):
         assert jmap.cli.main(["--version"]) == 0
         assert capsys.readouterr().out == f"jmap {__version__}\n"
+
+    def test_both_command_names(self):
+        scripts = {
+            point.name: point.value
+            for point in importlib.metadata.entry_points(group="console_scripts")
+            if point.value == "jmap.cli:main"
+        }
+        assert scripts == {"jmap": "jmap.cli:main", "jmap-cli": "jmap.cli:main"}
 
     def test_python_dash_m(self):
         done = subprocess.run(

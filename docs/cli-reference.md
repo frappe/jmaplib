@@ -556,7 +556,7 @@ Delete contact cards, after you confirm.
 
 | Argument | Description |
 |---|---|
-| `CONTACTS...` | Card ids, or email addresses. Required. |
+| `CONTACTS...` | Numbers from the last 'contact list', ids, or addresses. Required. |
 
 ### jmap contact edit
 
@@ -568,7 +568,7 @@ Edit a contact card's JSON in your editor; only what you change is sent.
 
 | Argument | Description |
 |---|---|
-| `CONTACT` | The card: an id, or an email address. Required. |
+| `CONTACT` | The card: a listing number, an id, or an address. Required. |
 
 ### jmap contact import
 
@@ -614,7 +614,7 @@ Show one contact card: every address, number and note.
 
 | Argument | Description |
 |---|---|
-| `CONTACT` | The card: an id, or an email address. Required. |
+| `CONTACT` | The card: a listing number, an id, or an address. Required. |
 
 ## jmap draft
 

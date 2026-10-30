@@ -605,7 +605,8 @@ client = JMAPClient.connect(
 
 ## Command line
 
-`pip install 'jmaplib[cli]'` adds a `jmap` command built on the library:
+`pip install 'jmaplib[cli]'` adds a `jmap` command built on the library. It is
+also installed as `jmap-cli`, because macOS has a Java tool at `/usr/bin/jmap`:
 
 ```console
 $ jmap account add work --url https://mail.example.com/.well-known/jmap \

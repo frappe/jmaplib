@@ -21,13 +21,13 @@ from jmap.cli.commands.cards import (
     display_name,
     emails,
     find_cards,
-    listed,
     notes,
     organization,
     phones,
 )
 from jmap.cli.errors import UnsupportedError, UsageError
-from jmap.cli.output import Column, View
+from jmap.cli.ids import Listing
+from jmap.cli.output import Column, View, wire_of
 from jmap.core.narrow import is_object
 from jmap.models.contacts import ContactCard
 from jmap.models.jscontact import (
@@ -45,8 +45,10 @@ if TYPE_CHECKING:
 
 app: typer.Typer = typer.Typer(no_args_is_help=True)
 
-Contacts = Annotated[list[str], typer.Argument(help="Card ids, or email addresses.")]
-One = Annotated[str, typer.Argument(help="The card: an id, or an email address.")]
+Contacts = Annotated[
+    list[str], typer.Argument(help="Numbers from the last 'contact list', ids, or addresses.")
+]
+One = Annotated[str, typer.Argument(help="The card: a listing number, an id, or an address.")]
 BookOption = Annotated[str | None, typer.Option("--book", help="The address book, by name or id.")]
 
 #: ``--sort`` words and the ``ContactCard/query`` property each sorts on.
@@ -87,11 +89,12 @@ def list_(
     with client.batch() as batch:
         found = batch.add(kind.method("query"), query)
         cards = batch.add(kind.method("get"), {"ids": found.ref_ids()})
-    by_id = {card["id"]: card for card in listed(cards.result)}
+    by_id = {card["id"]: card for card in wire_of(cards.result)["list"]}
     rows = [by_id[card_id] for card_id in found.result.ids if card_id in by_id]
     total = found.result.total
     footer = f"{len(rows)} of {total} contact(s)" if total is not None else None
-    context.renderer.render(View(rows, COLUMNS, footer=footer))
+    context.renderer.render(View(rows, COLUMNS, first_number=1, footer=footer))
+    context.contact_cursor.record(Listing(ids=tuple(str(row["id"]) for row in rows)))
 
 
 @app.command()

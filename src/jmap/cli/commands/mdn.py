@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import typer
 
 from jmap.cli.commands import cli
-from jmap.cli.commands.mail import select
+from jmap.cli.commands.mail_select import select
 from jmap.cli.errors import NotFoundError, PartialFailureError, UsageError
 from jmap.cli.output import Column, View, wire_of
 from jmap.mail.reply import pick_identity

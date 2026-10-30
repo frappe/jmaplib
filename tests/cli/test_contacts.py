@@ -99,14 +99,34 @@ class TestList:
     def test_every_card(self, invoke, contacts):
         result = invoke("contact", "list")
         assert rows(result.out) == [
-            ["c1", "Ada Lovelace", "ada@example.com", "+44 1", ""],
-            ["c2", "Charles Babbage", "charles@example.com", "", ""],
+            ["1", "c1", "Ada Lovelace", "ada@example.com", "+44 1", ""],
+            ["2", "c2", "Charles Babbage", "charles@example.com", "", ""],
         ]
         assert "2 of 2 contact(s)" in result.err
 
+    def test_numbers_in_one_shell(self, make_context, contacts):
+        from jmap.cli.shell import Shell
+
+        context = make_context()
+        shell = Shell(context, context.flags)
+        shell.execute("contact list")
+        shell.execute("contact delete 2 --yes")
+        assert "c2" not in contacts.cards
+        context.close()
+
+    def test_numbers_name_cards_in_later_commands(self, invoke, contacts):
+        invoke("contact", "list")
+        assert invoke("contact", "show", "2", "--json").json()["id"] == "c2"
+        assert invoke("contact", "delete", "1", "--yes").code == 0
+        assert "c1" not in contacts.cards
+        result = invoke("contact", "show", "3")
+        assert result.code == 9
+        assert "the last listing has no contact 3" in result.err
+        assert "run 'jmap contact list' again" in result.err
+
     def test_text_book_sort_and_limit(self, invoke, contacts, server):
         result = invoke("contact", "list", "a", "--book", "Work", "--sort", "-surname", "-n", "5")
-        assert [row[0] for row in rows(result.out)] == ["c2"]
+        assert [row[1] for row in rows(result.out)] == ["c2"]
         query, get = server.requests[-1]["methodCalls"]
         assert query[1]["filter"] == {"text": "a", "inAddressBook": "b2"}
         assert query[1]["sort"] == [{"property": "name/surname", "isAscending": False}]
@@ -115,7 +135,7 @@ class TestList:
 
     def test_sorted_by_given_name(self, invoke, contacts):
         result = invoke("contact", "list", "--sort", "given")
-        assert [row[1] for row in rows(result.out)] == ["Ada Lovelace", "Charles Babbage"]
+        assert [row[2] for row in rows(result.out)] == ["Ada Lovelace", "Charles Babbage"]
 
     def test_an_unknown_sort(self, invoke, contacts):
         result = invoke("contact", "list", "--sort", "age")
@@ -269,7 +289,7 @@ class TestLegacy:
     def test_list(self, invoke, legacy, server):
         result = invoke("contact", "list", "ada")
         assert rows(result.out) == [
-            ["L1", "Ada Lovelace", "ada@example.com", "+44 1", "Analytical Society"]
+            ["1", "L1", "Ada Lovelace", "ada@example.com", "+44 1", "Analytical Society"]
         ]
         assert server.requests[-1]["methodCalls"][0][0] == "Contact/query"
 

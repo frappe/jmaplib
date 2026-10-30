@@ -12,7 +12,6 @@ The stream is a sequence, so ``--json`` prints one JSON object per line, as
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 from contextlib import closing
 from dataclasses import dataclass
@@ -41,7 +40,10 @@ if TYPE_CHECKING:
     Event = StateChange | CalendarAlert | Ping
 
 #: What a one-line summary of a new message needs.
-_PROPERTIES: Final = ["id", "receivedAt", "from", "subject", "mailboxIds"]
+_PROPERTIES: Final = ["id", "receivedAt", "from", "subject", "mailboxIds", "keywords"]
+#: Keywords that mark a message as not new mail: a draft, or one already read,
+#: such as the copy of a message you sent.
+_NOT_NEW: Final = frozenset({"$draft", "$seen"})
 
 
 def watch(
@@ -76,7 +78,7 @@ def watch(
         source = EventSourceClient(context.client(), types=wanted, ping=ping)
     except UnknownPushTypeError as error:
         raise UsageError(str(error)) from error
-    watcher = Watcher(context, shlex.split(command) if command else None, tracker)
+    watcher = Watcher(context, command or None, tracker)
     with closing(source.listen()) as events:
         for event in events:
             watcher.handle(event)
@@ -85,9 +87,7 @@ def watch(
 class Watcher:
     """Turns each event into output, a command run, or new-mail lines."""
 
-    def __init__(
-        self, context: CLIContext, command: list[str] | None, tracker: NewMail | None
-    ) -> None:
+    def __init__(self, context: CLIContext, command: str | None, tracker: NewMail | None) -> None:
         self.context = context
         self.command = command
         self.tracker = tracker
@@ -124,7 +124,8 @@ class Watcher:
         file.write(line + "\n")
         file.flush()  # a pipe reading the stream should see each line as it comes
 
-    def _run(self, command: list[str], event: StateChange | CalendarAlert) -> None:
+    def _run(self, command: str, event: StateChange | CalendarAlert) -> None:
+        """``command`` through the shell, as ``watchexec`` runs its commands."""
         changed = event.changed if isinstance(event, StateChange) else {}
         types = sorted(event.types()) if isinstance(event, StateChange) else ["CalendarAlert"]
         environment = {
@@ -136,15 +137,16 @@ class Watcher:
         try:
             done = subprocess.run(
                 command,
+                shell=True,  # the person typed it, and wants pipes and variables to work
                 input=json.dumps(wire_of(event)),
                 text=True,
                 env=environment,
                 check=False,
             )
         except OSError as error:
-            raise UsageError(f"cannot run {command[0]}: {error.strerror or error}") from error
+            raise UsageError(f"cannot run {command!r}: {error.strerror or error}") from error
         if done.returncode:
-            self.context.renderer.note(f"{command[0]} exited {done.returncode}")
+            self.context.renderer.note(f"{command!r} exited {done.returncode}")
 
 
 @dataclass(slots=True)
@@ -171,13 +173,15 @@ class NewMail:
         return cls(client, account_id, state, match)
 
     def check(self, event: StateChange | CalendarAlert) -> list[dict[str, Any]]:
-        """The messages created since the last check, if ``event`` says Email moved."""
+        """The unread messages created since the last check, if ``event`` says Email moved."""
         if not isinstance(event, StateChange):
             return []
         pushed = event.states_for(self.account_id).get("Email")
         if pushed is None or pushed == self.state:
             return []
-        created = self._created()
+        created = [
+            item for item in self._created() if not _NOT_NEW & set(item.get("keywords") or {})
+        ]
         if self.match is None or not created:
             return created
         return self._matching(created)

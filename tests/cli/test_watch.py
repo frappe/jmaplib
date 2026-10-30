@@ -85,7 +85,7 @@ class TestExec:
     def runs(self, monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         calls: list[dict[str, Any]] = []
 
-        def fake(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        def fake(command: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
             calls.append({"command": command, **kwargs})
             return subprocess.CompletedProcess(command, 3 if "fail" in command else 0)
 
@@ -94,10 +94,11 @@ class TestExec:
 
     def test_the_command_gets_the_event(self, invoke, server, account, runs):
         server.push("a", {"Email": "e2", "Mailbox": "m2"})
-        result = invoke("watch", "--exec", "notify --all")
+        result = invoke("watch", "--exec", "notify --all | tee log")
         assert result.out == ""
         [run] = runs
-        assert run["command"] == ["notify", "--all"]
+        assert run["command"] == "notify --all | tee log"
+        assert run["shell"] is True
         assert run["env"]["JMAP_ACCOUNT"] == "work"
         assert run["env"]["JMAP_TYPES"] == "Email,Mailbox"
         assert json.loads(run["env"]["JMAP_STATES"]) == {"a": {"Email": "e2", "Mailbox": "m2"}}
@@ -113,30 +114,33 @@ class TestExec:
         server.push("a", {"Email": "e2"})
         result = invoke("watch", "--exec", "fail")
         assert result.code == 0
-        assert "fail exited 3" in result.err
+        assert "'fail' exited 3" in result.err
 
     def test_a_command_that_cannot_run(self, invoke, server, account, monkeypatch):
-        def missing(command: list[str], **_: Any) -> None:
+        def missing(command: str, **_: Any) -> None:
             raise FileNotFoundError(2, "No such file or directory")
 
         monkeypatch.setattr(subprocess, "run", missing)
         server.push("a", {"Email": "e2"})
         result = invoke("watch", "--exec", "nothere")
         assert result.code == 2
-        assert "cannot run nothere: No such file or directory" in result.err
+        assert "cannot run 'nothere': No such file or directory" in result.err
 
 
 class TestNewMail:
     @pytest.fixture
     def pages(self) -> dict[str, tuple[list[str], str, bool]]:
         """Email state -> (created ids, the next state, whether more follow)."""
-        return {"s": (["e9"], "t0", True), "t0": (["e10"], "t1", False)}
+        return {"s": (["e9", "s1"], "t0", True), "t0": (["d1", "e10"], "t1", False)}
 
     @pytest.fixture(autouse=True)
     def mail(self, mailer: MailStore, server: FakeJMAPServer, pages: dict[str, Any]) -> MailStore:
         mailer.add(
             email("e9", "Invoice 12", received="2026-10-30T09:00:00Z"),
             email("e10", "Hello", sender="carol@example.com", received="2026-10-30T09:05:00Z"),
+            # Created too, but not new mail: a sent copy and a draft.
+            email("s1", "Sent", received="2026-10-30T09:01:00Z", keywords=("$seen",)),
+            email("d1", "Draft", received="2026-10-30T09:02:00Z", keywords=("$draft",)),
         )
 
         def changes(args: dict[str, Any], _server: FakeJMAPServer) -> dict[str, Any]:
@@ -184,9 +188,9 @@ class TestNewMail:
         assert invoke("watch", "--new-mail", "--match", "subject:invoice").out == ""
 
     def test_an_alert_and_a_command(self, invoke, server, monkeypatch):
-        ran: list[list[str]] = []
+        ran: list[str] = []
 
-        def fake(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        def fake(command: str, **_: Any) -> subprocess.CompletedProcess[str]:
             ran.append(command)
             return subprocess.CompletedProcess(command, 0)
 
@@ -194,7 +198,7 @@ class TestNewMail:
         alert(server)
         result = invoke("watch", "--new-mail", "--exec", "beep")
         assert result.out == ""
-        assert ran == [["beep"]]
+        assert ran == ["beep"]
 
     def test_email_is_always_watched(self, invoke, server, urls):
         invoke("watch", "--new-mail", "--types", "Mailbox")

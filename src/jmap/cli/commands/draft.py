@@ -8,7 +8,8 @@ import typer
 
 from jmap.cli.commands import cli, report_set
 from jmap.cli.commands.compose import Attach, Bcc, Body, BodyFile, Cc, Edit, Sender, Subject, To
-from jmap.cli.commands.mail import Filters, Paging, Scope, run_listing, select
+from jmap.cli.commands.mail import Filters, Paging, Scope, run_listing
+from jmap.cli.commands.mail_select import select
 from jmap.cli.commands.sending import (
     Message,
     Prelude,

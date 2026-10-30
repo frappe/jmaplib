@@ -15,7 +15,8 @@ import typer
 
 from jmap.capabilities.mail import MAIL_URN
 from jmap.cli.commands import cli, report_set
-from jmap.cli.commands.mail import Selection, app, select
+from jmap.cli.commands.mail import app
+from jmap.cli.commands.mail_select import Selection, select
 from jmap.cli.connect import find_account
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError, UsageError

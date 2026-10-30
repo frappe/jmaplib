@@ -9,7 +9,8 @@ for exactly which revision of each spec this build implements.
 
 ### Added
 
-- **A `jmap` command.** `pip install 'jmaplib[cli]'` installs it, and
+- **A `jmap` command.** `pip install 'jmaplib[cli]'` installs it, also as
+  `jmap-cli` because macOS has a Java tool at `/usr/bin/jmap`, and
   `python -m jmap` runs it too. `--json` prints the server's own objects, and
   the exit code tells the kind of failure. `docs/cli.md` is the guide.
   `docs/cli-reference.md` lists every command, argument and option, and is
@@ -49,7 +50,8 @@ for exactly which revision of each spec this build implements.
   pipe, so a script can be fed to it.
 - **Contacts** (RFC 9610). `jmap addressbook list/create/rename/delete` and
   `jmap contact list/show/create/edit/delete/import` manage address books and
-  cards. `contact edit` opens the card's JSON in your editor and sends only the
+  cards. `contact list` numbers its rows, and later commands take those numbers,
+  as for mail. `contact edit` opens the card's JSON in your editor and sends only the
   properties you changed.
   `contact import` adds a vCard file through the server's `ContactCard/parse`.
   When the server answers `requestTooLarge`, it sends half as many cards at a
@@ -76,7 +78,8 @@ for exactly which revision of each spec this build implements.
   activates Sieve filters. `jmap quota` shows what is used against each limit.
   `jmap changes TYPE --since STATE` follows every page of `Foo/changes`.
   `jmap watch` follows the event source. It can print new mail
-  (`--new-mail --match QUERY`) or run a command for each change (`--exec`).
+  (`--new-mail --match QUERY`), which leaves out drafts and read messages such
+  as your own sent copies, or run a shell command for each change (`--exec`).
   `jmap push` manages push subscriptions, with encrypted payloads if
   `jmaplib[push]` is installed.
 - **Raw method calls.** `jmap api call` sends one method with raw arguments.

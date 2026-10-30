@@ -12,7 +12,8 @@ from rich.markup import escape
 
 from jmap.cli import format as fmt
 from jmap.cli.commands import cli
-from jmap.cli.commands.mail import app, select
+from jmap.cli.commands.mail import app
+from jmap.cli.commands.mail_select import select
 from jmap.cli.context import CLIContext
 from jmap.cli.errors import NotFoundError, UsageError
 from jmap.cli.files import write_file

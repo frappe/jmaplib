@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
     from jmap.cli.context import CLIContext
     from jmap.client import JMAPClient
-    from jmap.models.responses import GetResponse
 
 Card = dict[str, Any]
 
@@ -54,10 +53,14 @@ def card_type(context: CLIContext, *verbs: str) -> tuple[JMAPClient, CardType]:
 
 
 def find_cards(context: CLIContext, kind: CardType, refs: list[str]) -> list[Card]:
-    """The cards ``refs`` name: ids, or email addresses that match one card each."""
+    """The cards ``refs`` name: listing numbers, ids, or addresses that match one card each."""
     client = context.client()
     addresses = [ref for ref in refs if "@" in ref]
-    ids: list[str] = [parse_id(ref) for ref in refs if "@" not in ref]
+    ids: list[str] = [
+        context.contact_cursor.resolve(int(ref)) if ref.isdigit() else parse_id(ref)
+        for ref in refs
+        if "@" not in ref
+    ]
     with client.batch() as batch:
         lookups = {
             address: batch.add(kind.method("query"), {"filter": {kind.email_filter: address}})
@@ -67,20 +70,11 @@ def find_cards(context: CLIContext, kind: CardType, refs: list[str]) -> list[Car
         ids.append(_only_match(address, [str(found) for found in handle.result.ids]))
     with client.batch() as batch:
         handle = batch.add(kind.method("get"), {"ids": list(dict.fromkeys(ids))})
-    cards = listed(handle.result)
+    cards: list[Card] = wire_of(handle.result)["list"]
     missing = set(ids) - {card["id"] for card in cards}
     if missing:
         raise NotFoundError(f"no contact {', '.join(sorted(missing))}")
     return cards
-
-
-def listed(result: GetResponse[Any]) -> list[Card]:
-    """The objects a ``/get`` found, in wire form.
-
-    Item by item: a legacy ``Contact`` is an untyped object that the response
-    model cannot dump as a whole.
-    """
-    return [wire_of(item) for item in result.items]
 
 
 def _only_match(address: str, ids: list[str]) -> str:

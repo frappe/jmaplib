@@ -130,6 +130,7 @@ class CLIContext:
         self._http: httpx.Client | None = None
         self._mailboxes: MailboxIndex | None = None
         self._cursor: Cursor | None = None
+        self._contact_cursor: Cursor | None = None
         self._log_handler: logging.Handler | None = None
 
     @classmethod
@@ -306,10 +307,21 @@ class CLIContext:
     def cursor(self) -> Cursor:
         """The last listing for this named account and JMAP account."""
         if self._cursor is None:
-            jmap_account = self.client().default_account or "default"
-            path = state_dir(self.environ) / self.account.name / jmap_account / "cursor.json"
-            self._cursor = Cursor(path)
+            self._cursor = Cursor(self._state_file("cursor.json"))
         return self._cursor
+
+    @property
+    def contact_cursor(self) -> Cursor:
+        """The last ``contact list``, so ``contact show 2`` means its second row."""
+        if self._contact_cursor is None:
+            path = self._state_file("contact-cursor.json")
+            self._contact_cursor = Cursor(path, noun="contact", command="jmap contact list")
+        return self._contact_cursor
+
+    def _state_file(self, name: str) -> Path:
+        """A file kept for this named account and JMAP account between runs."""
+        jmap_account = self.client().default_account or "default"
+        return state_dir(self.environ) / self.account.name / jmap_account / name
 
     # -- output ------------------------------------------------------------- #
     def write_bytes(self, data: bytes) -> None:
@@ -341,6 +353,7 @@ class CLIContext:
             self._client = None
             self._mailboxes = None
             self._cursor = None
+            self._contact_cursor = None
         if self._http is not None:
             self._http.close()
             self._http = None

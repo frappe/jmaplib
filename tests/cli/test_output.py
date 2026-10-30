@@ -7,11 +7,14 @@ import json
 import subprocess
 from typing import Any
 
+import pytest
+from pydantic import BaseModel, ConfigDict
 from rich.console import Console
 
 from jmap.cli.output import Column, OutputFormat, OutputOptions, Renderer, View, wire_of
 from jmap.models.base import JMAPObject
 from jmap.models.mail.objects import Mailbox
+from jmap.models.responses import GetResponse
 
 ITEMS: list[dict[str, Any]] = [
     {"id": "m1", "name": "Inbox", "n": 3},
@@ -135,6 +138,20 @@ class TestWire:
         assert wire_of(JMAPObject({"a": 1})) == {"a": 1}
         assert wire_of({"k": [Mailbox(name="x"), 2]}) == {"k": [{"name": "x"}, 2]}
         assert wire_of("s") == "s"
+
+    def test_untyped_objects_inside_a_model(self):
+        response = GetResponse[JMAPObject].model_validate(
+            {"accountId": "a", "state": "s", "list": [{"id": "c1", "x": 1}], "notFound": []}
+        )
+        assert wire_of(response)["list"] == [{"id": "c1", "x": 1}]
+
+    def test_anything_else_inside_a_model_is_refused(self):
+        class Odd(BaseModel):
+            model_config = ConfigDict(arbitrary_types_allowed=True)
+            thing: object
+
+        with pytest.raises(TypeError, match="cannot show a object as JSON"):
+            wire_of(Odd(thing=object()))
 
     def test_json_writes_any_value(self):
         r, out, _ = renderer(OutputFormat.TABLE)

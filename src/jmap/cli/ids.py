@@ -210,11 +210,18 @@ class Listing:
 
 
 class Cursor:
-    """The last listing, in memory and (when given a path) on disk between runs."""
+    """The last listing, in memory and (when given a path) on disk between runs.
 
-    def __init__(self, path: Path | None) -> None:
+    ``noun`` and ``command`` name what is listed, and how, in the errors.
+    """
+
+    def __init__(
+        self, path: Path | None, *, noun: str = "message", command: str = "jmap mail list"
+    ) -> None:
         self._path = path
         self._listing: Listing | None = None
+        self._noun = noun
+        self._command = command
 
     def record(self, listing: Listing) -> None:
         self._listing = listing
@@ -234,16 +241,16 @@ class Cursor:
         listing = self.listing
         if listing is None:
             raise NotFoundError(
-                f"there is no listing to take message {number} from",
-                hint="run 'jmap mail list' first",
+                f"there is no listing to take {self._noun} {number} from",
+                hint=f"run '{self._command}' first",
             )
         index = number - listing.first
         if not 0 <= index < len(listing.ids):
             last = listing.first + len(listing.ids) - 1
             shown = f"{listing.first}-{last}" if listing.ids else "none"
             raise NotFoundError(
-                f"the last listing has no message {number} (it showed {shown})",
-                hint="run 'jmap mail list' again",
+                f"the last listing has no {self._noun} {number} (it showed {shown})",
+                hint=f"run '{self._command}' again",
             )
         return listing.ids[index]
 
