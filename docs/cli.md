@@ -128,6 +128,54 @@ username. `--send-at` needs a server offering FUTURERELEASE, and is checked
 against its `maxDelayedSend`; `jmap submission cancel ID` stops a held message.
 `jmap send --eml FILE` sends a whole message file as it is.
 
+## Contacts
+
+```console
+$ jmap addressbook list
+$ jmap contact list                               # every card
+$ jmap contact list ada --book Work --sort surname
+$ jmap contact show ada@example.com
+$ jmap contact create --given Grace --surname Hopper --email grace@example.com --org Navy
+$ jmap contact edit ada@example.com               # the card's JSON, in your editor
+$ jmap contact import people.vcf --book Work
+$ jmap contact delete c42
+```
+
+Contacts use RFC 9610: cards are JSContact `ContactCard` objects, and each
+card is in one or more address books. A `CONTACT` is a card id, or an email
+address that exactly one card has. An `--book` is an address book's id or
+name. Without `--book`, `create` and `import` use the default address book.
+
+`contact list` sends `ContactCard/query` and `ContactCard/get` in one request.
+`TEXT` matches any text in the card. `--sort` takes `surname`, `given`,
+`created` or `updated`, and a leading `-` reverses the order. RFC 9610 makes
+servers support only `created` and `updated`, so a server can refuse the
+others. `--json` prints the cards as the server sends them.
+
+`contact edit` opens the card's JSON in your editor. When you save, each
+top-level property you changed is sent whole, and each one you removed is
+set to `null`. The `id` cannot change. If the file is not a JSON object, you
+can edit it again.
+
+`contact import` reads a vCard file, or `-` for stdin. The server converts
+vCard to JSContact with `ContactCard/parse`, which needs
+`urn:ietf:params:jmap:contacts:parse` (Stalwart offers it). This method reads
+one card per blob, so the command uploads each card in the file as its own
+blob. Then it parses them and creates the cards. The server limits how many
+blobs one parse can take, but does not say what the limit is. If the server
+answers `requestTooLarge`, the command sends half as many and tries again. It
+does the same for the create. A card the server cannot read is named on
+stderr, and the command exits 8.
+
+`addressbook delete` refuses an address book that holds cards, unless you give
+`--with-contacts`. Then the server destroys the cards too.
+
+Fastmail and older Cyrus servers have their own `Contact` type from before
+RFC 9610. On those servers, `contact list`, `show`, `edit` and `delete` work,
+and the tables show the fields those servers are known to send. `--book` and
+`--sort` need RFC 9610 address books, and so do `create`, `import` and
+`addressbook`. These exit 7 on such a server.
+
 ## The shell
 
 `jmap shell` keeps one connection open and runs commands typed at its prompt,
@@ -376,6 +424,16 @@ line. With `--json`, the last stderr line is also a JSON object:
 | `jmap vacation show/set/enable/disable` | The automatic reply while you are away. |
 | `jmap mail import FILE [--to MAILBOX]` | Add a message file to a mailbox without sending it. |
 | `jmap mail export MSG... [--dir DIR] [--save FILE] [--mbox FILE]` | Save messages as `.eml` files or one mbox. |
+| `jmap addressbook list` | The address books; the default one is marked. |
+| `jmap addressbook create NAME [--description TEXT] [--default]` | A new address book. |
+| `jmap addressbook rename BOOK NAME` | Rename it. |
+| `jmap addressbook delete BOOK [--with-contacts]` | Delete it, after you confirm. |
+| `jmap contact list [TEXT] [--book BOOK] [--sort KEY] [-n N]` | Contact cards, or those that match. |
+| `jmap contact show CONTACT` | One card: addresses, numbers, notes, address books. |
+| `jmap contact create --name/--given/--surname --email --phone --org ...` | A new card. |
+| `jmap contact edit CONTACT` | Edit the card's JSON; changed properties are sent. |
+| `jmap contact delete CONTACT...` | Delete cards, after you confirm. |
+| `jmap contact import FILE [--book BOOK]` | Add the cards in a vCard file. |
 | `jmap api call METHOD [JSON]` | Any modelled method, with raw arguments. |
 | `jmap shell` | Run commands on one connection, with `cd`, history and completion. |
 | `jmap config path` / `edit` / `set KEY VALUE` | The configuration file. |
