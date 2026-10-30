@@ -33,6 +33,7 @@ def register(app: typer.Typer) -> None:
         mail_triage,
         mailbox,
         mailbox_edit,
+        mdn,
         principal,
         server,
         share,
@@ -59,6 +60,7 @@ def register(app: typer.Typer) -> None:
     app.add_typer(vacation.app, name="vacation", help="The automatic reply while away.")
     app.add_typer(principal.app, name="principal", help="People, groups and resources.")
     app.add_typer(share.app, name="share", help="Who else may use your data.")
+    app.add_typer(mdn.app, name="mdn", help="Read receipts.")
     app.command("shell")(shell_cmd.shell)
     for verb in (compose.compose, compose.send, compose.reply, compose.forward):
         app.command(rich_help_panel="Mail")(verb)
