@@ -16,8 +16,9 @@ import typer
 from jmap.cli.commands import cli
 from jmap.cli.files import write_file
 
-#: Where Claude Code looks for a person's own skills.
-SKILLS: Path = Path("~/.claude/skills")
+#: Where Claude Code looks for a person's own skills. Text, not a Path, so the
+#: help and the generated reference read the same on Windows.
+SKILLS: str = "~/.claude/skills"
 
 
 def agent_guide(
@@ -25,7 +26,7 @@ def agent_guide(
     install: Annotated[
         bool, typer.Option("--install", help="Save it as a Claude Code skill.")
     ] = False,
-    skills: Annotated[Path, typer.Option("--skills-dir", help="Where to save the skill.")] = SKILLS,
+    skills: Annotated[str, typer.Option("--skills-dir", help="Where to save the skill.")] = SKILLS,
     force: Annotated[bool, typer.Option("--force", help="Replace a saved skill.")] = False,
 ) -> None:
     """Print the guide for AI agents: safe use, searches, output and exit codes.
@@ -39,7 +40,7 @@ def agent_guide(
     if not install:
         context.out.file.write(text)
         return
-    path = skills.expanduser() / program / "SKILL.md"
+    path = Path(skills).expanduser() / program / "SKILL.md"
     write_file(path, (_front_matter(program) + text).encode(), force=force)
     context.renderer.note(f"saved the skill to {path}; new Claude Code sessions load it")
 

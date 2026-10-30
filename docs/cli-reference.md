@@ -238,7 +238,7 @@ Print the guide for AI agents: safe use, searches, output and exit codes.
 | Option | Value | Description |
 |---|---|---|
 | `--install` |  | Save it as a Claude Code skill. |
-| `--skills-dir` | `PATH` | Where to save the skill. Default: `~/.claude/skills`. |
+| `--skills-dir` | `TEXT` | Where to save the skill. Default: `~/.claude/skills`. |
 | `--force` |  | Replace a saved skill. |
 
 ## jmap api
