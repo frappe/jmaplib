@@ -220,6 +220,7 @@ source_modules = [
     "jmap.auth",
     "jmap.push",
     "jmap.sync",
+    "jmap.mail",
     "jmap.testing",
     "jmap.discovery",
     "jmap.blobs",
@@ -239,3 +240,9 @@ forbidden_modules = [
     "tomli_w",
     "markdown_it",
 ]
+
+[[tool.importlinter.contracts]]
+name = "jmap.mail queues calls on a batch and never sends them"
+type = "forbidden"
+source_modules = ["jmap.mail"]
+forbidden_modules = ["jmap.client", "jmap.aio", "httpx"]

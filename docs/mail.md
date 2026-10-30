@@ -343,6 +343,59 @@ Each blob yields one email, stored nowhere - so it has no `id` or `mailbox_ids`.
 Blobs that are not messages are listed in `not_parsable`. See [Blobs](blobs.md)
 for getting the blob there in the first place.
 
+## Searching and reading, the short way: `jmap.mail`
+
+`jmap.mail` sits on top of the calls above. It holds the batches that listing,
+reading and threads need, a search language, and a body-to-text renderer. It
+does no I/O: it queues calls on a batch you hold and reads emails you fetched,
+so it works the same with the sync and async clients.
+
+```python
+from jmap.mail import body_text, parse, parse_sort, queue_list, queue_read, to_filter
+
+node = parse("from:bob is:unread after:7d (invoice OR receipt) -has:attachment")
+query = to_filter(node, mailbox_id=lambda name: by_role[name].id)
+
+with client.batch() as batch:
+    found = queue_list(batch, filter=query, sort=parse_sort("-date"), limit=20)
+print(found.query.result.total, "matches")
+
+with client.batch() as batch:
+    read = queue_read(batch, found.query.result.ids[:1])
+email = read.emails.result.items[0]
+print(body_text(email).text)
+```
+
+The search language ANDs terms next to each other, and has `OR`, `NOT` (or a
+leading `-`) and parentheses. A word without a key searches everything.
+
+| Term | Means |
+|---|---|
+| `from:` `to:` `cc:` `bcc:` `subject:` `body:` `text:` | That field contains the text. |
+| `in:MAILBOX` `notin:MAILBOX` | In, or not only in, a mailbox; your `mailbox_id` turns the name into an id. |
+| `is:unread` `read` `flagged` `unflagged` `answered` `forwarded` `draft` `junk` | A standard keyword is set (or not). |
+| `tag:NAME` | Any keyword. |
+| `has:attachment` | It has an attachment. |
+| `before:` `after:` | `2025-01-31`, `today`, `yesterday`, or `7d`, `2w`, `3m`, `1y` ago. |
+| `larger:` `smaller:` | `500`, `10K`, `2M`, `1G`. |
+| `header:Name` `header:Name=value` | The header is present, or contains the value. |
+| `thread:all:KW` `thread:some:KW` `thread:none:KW` | Keyword across the thread. |
+
+Terms with different keys merge into one `FilterCondition`, which every server
+handles best. `NOT` over `is:`, `tag:` and `has:` becomes the negative condition
+rather than a `NOT` operator. A mistake raises `QueryError`, a `ValueError`,
+with a suggestion when a key is misspelt.
+
+`body_text` uses the plain part when there is one and converts HTML otherwise,
+with the standard library's parser: paragraphs, `- ` list items, `> ` quotes and
+`text <url>` links. It reports which part it used and whether the server cut the
+value short at `maxBodyValueBytes`. `attachments_of` and `quote` do what their
+names say.
+
+`queue_thread` fetches a whole conversation in one request through the
+flattening back-reference `/list/*/emailIds` (RFC 8620 §3.7). A server that
+answers `invalidResultReference` needs two requests, `Thread/get` first.
+
 ## Threads
 
 A thread is derived, not stored - so it has `/get` and `/changes` and nothing
