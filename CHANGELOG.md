@@ -5,7 +5,11 @@ with one deliberate exception: capabilities marked `experimental=True` track IET
 drafts and are excluded from the compatibility promise. See `jmap.SPEC_REVISIONS`
 for exactly which revision of each spec this build implements.
 
-## Unreleased
+## 3.1.0
+
+A minor release: everything in it is new, and the library you already call is
+unchanged. The `jmap` command is an optional extra, so a plain
+`pip install jmaplib` brings in nothing it did not before.
 
 ### Added
 

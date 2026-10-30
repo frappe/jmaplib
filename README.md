@@ -757,7 +757,7 @@ Task-oriented guides live in [`docs/`](docs/index.md):
 
 ## Status and versioning
 
-**3.0.1** - stable, and following [Semantic Versioning](https://semver.org). See
+**3.1.0** - stable, and following [Semantic Versioning](https://semver.org). See
 the [changelog](CHANGELOG.md) for what changed.
 
 - **Experimental capabilities are outside the SemVer promise.** Calendars and
